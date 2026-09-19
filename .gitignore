@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+*.egg
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.venv/
+venv/
+
+# Secrets
+.env
+
+# Storage (original + extracted files — persisted via Docker volume, not git)
+storage/documents/
+storage/images/
+
+# Keep the storage directory structure in git
+!storage/.gitkeep
+!storage/documents/.gitkeep
+!storage/images/.gitkeep
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# macOS
+.DS_Store

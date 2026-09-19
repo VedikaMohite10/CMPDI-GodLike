@@ -1,0 +1,79 @@
+version: "3.9"
+
+# =============================================================================
+# CMPDI AI Mining Intelligence Platform — Phase 1
+# Run: docker compose up --build
+# Assumes Ollama is already running on the host at port 11434.
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL 16 — structured data (documents, pages, extractions)
+  # ---------------------------------------------------------------------------
+  db:
+    image: postgres:16-alpine
+    container_name: cmpdi_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-cmpdi}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cmpdipass}
+      POSTGRES_DB: ${POSTGRES_DB:-cmpdi_mining}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cmpdi} -d ${POSTGRES_DB:-cmpdi_mining}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ---------------------------------------------------------------------------
+  # Qdrant — vector storage for embedded text blocks
+  # ---------------------------------------------------------------------------
+  qdrant:
+    image: qdrant/qdrant:v1.9.4
+    container_name: cmpdi_qdrant
+    restart: unless-stopped
+    volumes:
+      - qdrant_data:/qdrant/storage
+    ports:
+      - "${QDRANT_HTTP_PORT:-6333}:6333"   # HTTP / REST
+      - "${QDRANT_GRPC_PORT:-6334}:6334"   # gRPC
+
+  # ---------------------------------------------------------------------------
+  # FastAPI app — ingestion, extraction, search
+  # ---------------------------------------------------------------------------
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cmpdi_api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-cmpdi}:${POSTGRES_PASSWORD:-cmpdipass}@db:5432/${POSTGRES_DB:-cmpdi_mining}
+      QDRANT_HOST: qdrant
+      QDRANT_PORT: 6333
+      # Ollama runs on the host — host.docker.internal resolves to the host machine
+      # On Linux, extra_hosts below maps this alias to the host gateway IP.
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      STORAGE_ROOT: /app/storage
+      OCR_ENGINE: ${OCR_ENGINE:-tesseract}
+      MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-100}
+    volumes:
+      - ./storage:/app/storage    # original files + extracted images persist on host
+      - .:/app                    # source code mount for hot-reload
+    ports:
+      - "${API_PORT:-8000}:8000"
+    extra_hosts:
+      # Needed on Linux Docker hosts so host.docker.internal resolves
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  postgres_data:
+  qdrant_data:

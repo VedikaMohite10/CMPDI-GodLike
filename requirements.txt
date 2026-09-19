@@ -1,0 +1,43 @@
+# =============================================================================
+# CMPDI AI Mining Intelligence Platform — Phase 1
+# =============================================================================
+
+# ---------- Web Framework ----------
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+python-multipart>=0.0.9       # multipart/form-data file uploads
+
+# ---------- Database ----------
+sqlalchemy[asyncio]>=2.0.29   # async ORM
+alembic>=1.13.1               # schema migrations
+asyncpg>=0.29.0               # async PostgreSQL driver
+
+# ---------- Config ----------
+pydantic>=2.7.1
+pydantic-settings>=2.3.0      # typed .env config
+
+# ---------- File I/O ----------
+aiofiles>=23.2.1              # async file read/write
+python-magic>=0.4.27          # MIME type detection via libmagic
+
+# ---------- PDF (digital) ----------
+pdfplumber>=0.11.0            # text + table + image extraction from digital PDFs
+
+# ---------- PDF (scanned → rasterize for OCR) ----------
+pdf2image>=1.17.0             # wraps poppler pdftoppm; system dep: poppler-utils
+Pillow>=10.3.0                # image manipulation
+
+# ---------- OCR ----------
+pytesseract>=0.3.10           # Tesseract OCR; system dep: tesseract-ocr
+
+# ---------- DOCX ----------
+python-docx>=1.1.2            # paragraphs + tables from .docx
+
+# ---------- Spreadsheets ----------
+openpyxl>=3.1.2               # .xlsx parsing
+
+# ---------- HTTP Client (Ollama API) ----------
+httpx>=0.27.0                 # async HTTP client for Ollama embedding/VLM calls
+
+# ---------- Vector DB ----------
+qdrant-client>=1.9.1          # Qdrant HTTP client (sync + async)
