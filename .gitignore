@@ -32,3 +32,8 @@ storage/images/
 
 # macOS
 .DS_Store
+
+# Qdrant vector store (runtime data — not for git)
+.qdrant/
+.qdrant-initialized
+snapshots/
