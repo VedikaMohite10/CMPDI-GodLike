@@ -43,6 +43,22 @@ class Settings(BaseSettings):
     ENTITY_EMBEDDING_THRESHOLD: float = 0.92
 
     # ------------------------------------------------------------------
+    # Phase 3 — Analytics Engine + AI Query Copilot
+    # ------------------------------------------------------------------
+    # Intent detection / query planning — smaller model; constrained JSON output only
+    INTENT_LLM_MODEL: str = "qwen2.5:7b-instruct-q4_K_M"
+    # Final answer synthesis — larger model; user-visible natural-language responses
+    SYNTHESIS_LLM_MODEL: str = "qwen2.5:14b-instruct-q4_K_M"
+    # Minimum Qdrant cosine similarity score to count a semantic result as relevant.
+    # Results below this threshold are discarded (Layer 2 of the IE enforcement stack).
+    SEMANTIC_RELEVANCE_THRESHOLD: float = 0.60
+    # Max retries for intent/plan LLM call before falling back to insufficient-evidence
+    QUERY_PLANNER_MAX_RETRIES: int = 2
+    # Top-K entities injected into the planner prompt (pre-filtered by embedding similarity
+    # to avoid bloating context when the entity table grows large).
+    PLANNER_ENTITY_TOP_K: int = 20
+
+    # ------------------------------------------------------------------
     # OCR strategy
     # tesseract : always use Tesseract (fast, CPU-friendly)
     # vlm       : always use qwen2.5vl via Ollama (slower on CPU)

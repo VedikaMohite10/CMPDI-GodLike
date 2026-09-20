@@ -6,6 +6,7 @@ from app.models.vector_log import VectorIndexLog
 from app.models.phase2 import (
     CanonicalEntity, EntityAlias, ExtractedFact, NormalizedFact,
     ValidationFlag, Conflict, DuplicateCandidate, FactProcessingLog,
+    QueryResponse,
 )
 
 __all__ = [
@@ -13,4 +14,6 @@ __all__ = [
     "VectorIndexLog",
     "CanonicalEntity", "EntityAlias", "ExtractedFact", "NormalizedFact",
     "ValidationFlag", "Conflict", "DuplicateCandidate", "FactProcessingLog",
+    "QueryResponse",
 ]
+

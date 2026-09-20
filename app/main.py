@@ -14,6 +14,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.routers import documents, pages, search
 from app.routers import facts, entities, conflicts, flags, duplicates
+# Phase 3 routers
+from app.routers import query as query_router
+from app.routers import analytics as analytics_router
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -70,12 +73,13 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.APP_TITLE,
-        version=settings.APP_VERSION,
+        version="1.0.0-phase3",
         description=(
-            "Phase 1 — Ingestion + Extraction Backbone for CMPDI/CIL mining documents. "
-            "Accepts PDF (digital + scanned), DOCX, XLSX, CSV, JPG, PNG. "
-            "Extracts text, tables, and images with full provenance, "
-            "then indexes extracted text into Qdrant for semantic search."
+            "CMPDI AI Mining Intelligence Platform — Phase 3. "
+            "Deterministic Analytics Engine (YoY, CAGR, trend, anomaly), "
+            "Why-Did-This-Change Engine, Explainable AI packaging, "
+            "and AI Query & Response Copilot. "
+            "All numeric results are deterministic; LLM is grounded strictly in retrieved evidence."
         ),
         docs_url="/docs",
         redoc_url="/redoc",
@@ -108,6 +112,9 @@ def create_app() -> FastAPI:
     app.include_router(conflicts.router)
     app.include_router(flags.router)
     app.include_router(duplicates.router)
+    # Phase 3 — Analytics Engine + AI Query Copilot
+    app.include_router(query_router.router)
+    app.include_router(analytics_router.router)
 
     @app.get("/health", tags=["Health"])
     async def health():

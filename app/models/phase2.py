@@ -170,3 +170,30 @@ class FactProcessingLog(Base):
     __table_args__ = (
         UniqueConstraint("document_id", "phase", name="uq_doc_phase"),
     )
+
+
+class QueryResponse(Base):
+    """Persisted record of every AI Query Copilot response.
+
+    Every response is stored here so it can be:
+    - Retrieved by GET /query/{id} for debugging / audit
+    - Traced back to the exact facts, conflicts, and model calls that produced it
+    """
+    __tablename__ = "query_responses"
+
+    id:                  Mapped[uuid.UUID]       = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    question:            Mapped[str]             = mapped_column(Text, nullable=False)
+    answer:              Mapped[str]             = mapped_column(Text, nullable=False)
+    # JSONB columns store the structured response sub-fields
+    evidence:            Mapped[list]            = mapped_column(JSONB, nullable=False, default=list)
+    conflicts_surfaced:  Mapped[list]            = mapped_column(JSONB, nullable=False, default=list)
+    analytics_results:   Mapped[Optional[dict]]  = mapped_column(JSONB, nullable=True)
+    calculation:         Mapped[Optional[str]]   = mapped_column(Text, nullable=True)
+    confidence:          Mapped[int]             = mapped_column(Integer, nullable=False)
+    reasoning_type:      Mapped[str]             = mapped_column(String(30), nullable=False)
+    # Full planner output stored for audit — lets you replay exactly what the LLM decided
+    intent_plan:         Mapped[Optional[dict]]  = mapped_column(JSONB, nullable=True)
+    model_used_intent:   Mapped[Optional[str]]   = mapped_column(String(100), nullable=True)
+    model_used_synthesis: Mapped[Optional[str]]  = mapped_column(String(100), nullable=True)
+    created_at:          Mapped[datetime]        = mapped_column(DateTime(timezone=True), server_default=func.now())
+
