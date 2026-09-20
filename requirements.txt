@@ -18,7 +18,7 @@ pydantic-settings>=2.3.0      # typed .env config
 
 # ---------- File I/O ----------
 aiofiles>=23.2.1              # async file read/write
-python-magic>=0.4.27          # MIME type detection via libmagic
+filetype>=1.2.0               # pure-Python MIME detection from magic bytes (no libmagic system dep)
 
 # ---------- PDF (digital) ----------
 pdfplumber>=0.11.0            # text + table + image extraction from digital PDFs

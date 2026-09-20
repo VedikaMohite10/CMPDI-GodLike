@@ -309,3 +309,116 @@ async def _get_doc_or_404(document_id: uuid.UUID, db: AsyncSession) -> Document:
     if doc is None:
         raise HTTPException(status_code=404, detail=f"Document {document_id} not found.")
     return doc
+
+
+# ---------------------------------------------------------------------------
+# Phase 2 — Fact processing endpoints
+# ---------------------------------------------------------------------------
+from app.models.phase2 import FactProcessingLog  # noqa: E402
+from app.services.phase2.fact_pipeline import run_phase2_pipeline  # noqa: E402
+
+
+@router.post("/{document_id}/process-facts", status_code=202)
+async def trigger_process_facts(
+    document_id: uuid.UUID,
+    force: bool = False,
+    background_tasks: BackgroundTasks = ...,
+    db: AsyncSession = Depends(get_db),
+):
+    """Trigger Phase 2 fact extraction + normalization + validation for one document."""
+    doc = await _get_doc_or_404(document_id, db)
+    if doc.processing_status != "done":
+        raise HTTPException(
+            status_code=422,
+            detail=f"Document Phase 1 status is '{doc.processing_status}'. "
+                   "Phase 2 requires status='done'.",
+        )
+    job_result = await db.execute(
+        select(FactProcessingLog).where(
+            FactProcessingLog.document_id == document_id,
+            FactProcessingLog.phase == "phase2",
+        )
+    )
+    job = job_result.scalar_one_or_none()
+    if job and job.status == "done" and not force:
+        raise HTTPException(
+            status_code=409,
+            detail="Document already has completed Phase 2 processing. Use force=true to re-run.",
+        )
+    from app.database import AsyncSessionLocal
+
+    async def _run():
+        async with AsyncSessionLocal() as bg_db:
+            await run_phase2_pipeline(document_id=document_id, db=bg_db, force=force)
+
+    background_tasks.add_task(_run)
+    return {
+        "document_id": str(document_id),
+        "job_status":  "queued",
+        "force":       force,
+        "message":     "Phase 2 fact extraction queued as background task.",
+    }
+
+
+@router.post("/process-facts/batch", status_code=202)
+async def trigger_process_facts_batch(
+    force: bool = False,
+    background_tasks: BackgroundTasks = ...,
+    db: AsyncSession = Depends(get_db),
+):
+    """Trigger Phase 2 for all done documents without a completed Phase 2 log."""
+    from app.database import AsyncSessionLocal
+
+    done_docs = await db.execute(
+        select(Document.id).where(Document.processing_status == "done")
+    )
+    all_done_ids = [row[0] for row in done_docs.all()]
+    processed_logs = await db.execute(
+        select(FactProcessingLog.document_id).where(
+            FactProcessingLog.phase == "phase2",
+            FactProcessingLog.status == "done",
+        )
+    )
+    already_done = {row[0] for row in processed_logs.all()}
+    queued, skipped_processed = [], []
+    for doc_id in all_done_ids:
+        if doc_id in already_done and not force:
+            skipped_processed.append(str(doc_id))
+        else:
+            async def _run(did=doc_id):
+                async with AsyncSessionLocal() as bg_db:
+                    await run_phase2_pipeline(document_id=did, db=bg_db, force=force)
+            background_tasks.add_task(_run)
+            queued.append(str(doc_id))
+    return {"queued": queued, "skipped_already_processed": skipped_processed}
+
+
+@router.get("/{document_id}/process-facts/status")
+async def get_process_facts_status(
+    document_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """Get Phase 2 processing status for a document."""
+    await _get_doc_or_404(document_id, db)
+    job_result = await db.execute(
+        select(FactProcessingLog).where(
+            FactProcessingLog.document_id == document_id,
+            FactProcessingLog.phase == "phase2",
+        )
+    )
+    job = job_result.scalar_one_or_none()
+    if not job:
+        return {"document_id": str(document_id), "status": "not_started",
+                "facts_extracted": 0, "facts_normalized": 0, "facts_flagged": 0,
+                "conflicts_found": 0, "started_at": None, "completed_at": None, "error": None}
+    return {
+        "document_id":      str(document_id),
+        "status":           job.status,
+        "facts_extracted":  job.facts_extracted,
+        "facts_normalized": job.facts_normalized,
+        "facts_flagged":    job.facts_flagged,
+        "conflicts_found":  job.conflicts_found,
+        "started_at":       job.started_at.isoformat() if job.started_at else None,
+        "completed_at":     job.completed_at.isoformat() if job.completed_at else None,
+        "error":            job.error,
+    }

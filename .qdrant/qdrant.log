@@ -1,0 +1,39 @@
+<jemalloc>: option background_thread currently supports pthread only
+           _                 _    
+  __ _  __| |_ __ __ _ _ __ | |_  
+ / _` |/ _` | '__/ _` | '_ \| __| 
+| (_| | (_| | | | (_| | | | | |_  
+ \__, |\__,_|_|  \__,_|_| |_|\__| 
+    |_|                           
+
+Version: 1.13.6, build: 4db98ecd
+Access web UI at http://localhost:6333/dashboard
+
+2026-09-20T11:16:37.733070Z  WARN qdrant::settings: Config file not found: config/config    
+2026-09-20T11:16:37.733148Z  WARN qdrant::settings: Config file not found: config/development    
+2026-09-20T11:16:37.733254Z  INFO storage::content_manager::consensus::persistent: Initializing new raft state at /Users/vedikamohite/CMPDI-GodLike/.qdrant/storage/raft_state.json    
+2026-09-20T11:16:37.772398Z  INFO qdrant: Distributed mode disabled    
+2026-09-20T11:16:37.772457Z  INFO qdrant: Telemetry reporting enabled, id: 0d7a3e21-042a-4809-963c-300533236bd9    
+2026-09-20T11:16:37.772635Z  INFO qdrant: Inference service is not configured.    
+2026-09-20T11:16:37.773082Z  WARN qdrant::actix::web_ui: Static content folder for Web UI './static' does not exist    
+2026-09-20T11:16:37.773108Z  INFO qdrant::actix: TLS disabled for REST API    
+2026-09-20T11:16:37.773232Z  INFO qdrant::actix: Qdrant HTTP listening on 6333    
+2026-09-20T11:16:37.773260Z  INFO actix_server::builder: Starting 9 workers
+2026-09-20T11:16:37.773287Z  INFO actix_server::server: Actix runtime found; starting in Actix runtime
+2026-09-20T11:16:37.775380Z  INFO qdrant::tonic: Qdrant gRPC listening on 6334    
+2026-09-20T11:16:37.775386Z  INFO qdrant::tonic: TLS disabled for gRPC API    
+2026-09-20T11:16:49.499945Z  INFO actix_web::middleware::logger: 127.0.0.1 "GET /health HTTP/1.1" 404 0 "-" "curl/8.16.0" 0.000361    
+2026-09-20T11:23:31.243989Z  INFO actix_web::middleware::logger: 127.0.0.1 "GET /collections HTTP/1.1" 200 84 "-" "python-client/1.19.1 python/3.13.9" 0.000509    
+2026-09-20T11:23:31.248270Z  INFO storage::content_manager::toc::collection_meta_ops: Creating collection mining_text_blocks    
+2026-09-20T11:23:31.695894Z  INFO actix_web::middleware::logger: 127.0.0.1 "PUT /collections/mining_text_blocks HTTP/1.1" 200 70 "-" "python-client/1.19.1 python/3.13.9" 0.447891    
+2026-09-20T11:24:04.106541Z  INFO actix_web::middleware::logger: 127.0.0.1 "GET /collections HTTP/1.1" 200 99 "-" "python-client/1.19.1 python/3.13.9" 0.000121    
+2026-09-20T11:25:26.443723Z  INFO actix_web::middleware::logger: 127.0.0.1 "GET /collections HTTP/1.1" 200 99 "-" "python-client/1.19.1 python/3.13.9" 0.000105    
+2026-09-20T11:29:16.405017Z  INFO actix_web::middleware::logger: 127.0.0.1 "GET /collections HTTP/1.1" 200 98 "-" "qdrant-client/1.13.3 python/3.13.9" 0.000084    
+2026-09-20T11:33:27.999590Z  INFO actix_web::middleware::logger: 127.0.0.1 "PUT /collections/mining_text_blocks/points?wait=true HTTP/1.1" 200 91 "-" "qdrant-client/1.13.3 python/3.13.9" 0.002518    
+2026-09-20T11:33:28.998249Z  INFO actix_web::middleware::logger: 127.0.0.1 "POST /collections/mining_text_blocks/points/search HTTP/1.1" 200 681 "-" "qdrant-client/1.13.3 python/3.13.9" 0.000888    
+2026-09-20T11:33:29.095465Z  INFO actix_web::middleware::logger: 127.0.0.1 "POST /collections/mining_text_blocks/points/search HTTP/1.1" 200 683 "-" "qdrant-client/1.13.3 python/3.13.9" 0.000427    
+2026-09-20T11:34:35.410843Z  INFO actix_web::middleware::logger: 127.0.0.1 "PUT /collections/mining_text_blocks/points?wait=true HTTP/1.1" 200 90 "-" "qdrant-client/1.13.3 python/3.13.9" 0.002050    
+2026-09-20T11:34:38.131730Z  INFO actix_web::middleware::logger: 127.0.0.1 "POST /collections/mining_text_blocks/points/search HTTP/1.1" 200 706 "-" "qdrant-client/1.13.3 python/3.13.9" 0.000536    
+2026-09-20T11:34:38.192278Z  INFO actix_web::middleware::logger: 127.0.0.1 "POST /collections/mining_text_blocks/points/search HTTP/1.1" 200 692 "-" "qdrant-client/1.13.3 python/3.13.9" 0.000460    
+2026-09-20T12:23:11.364887Z  INFO actix_web::middleware::logger: 127.0.0.1 "GET /collections HTTP/1.1" 200 99 "-" "qdrant-client/1.13.3 python/3.13.9" 0.000097    
+2026-09-20T12:38:08.511284Z  INFO actix_web::middleware::logger: 127.0.0.1 "GET /collections HTTP/1.1" 200 101 "-" "qdrant-client/1.13.3 python/3.13.9" 0.005920    

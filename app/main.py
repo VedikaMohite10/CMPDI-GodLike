@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.routers import documents, pages, search
+from app.routers import facts, entities, conflicts, flags, duplicates
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -28,17 +29,19 @@ async def lifespan(app: FastAPI):
     # This ensures the schema is always current without manual steps.
     # -----------------------------------------------------------------
     try:
-        import subprocess
+        import subprocess, sys
+        from pathlib import Path as _Path
+        project_root = str(_Path(__file__).parent.parent)
         result = subprocess.run(
-            ["alembic", "upgrade", "head"],
+            [sys.executable, "-m", "alembic", "upgrade", "head"],
             capture_output=True,
             text=True,
-            cwd="/app",
+            cwd=project_root,
         )
         if result.returncode != 0:
             logger.error("Alembic migration failed:\n%s", result.stderr)
         else:
-            logger.info("Alembic migrations applied:\n%s", result.stdout or "(no changes)")
+            logger.info("Alembic migrations applied: %s", result.stdout.strip() or "(no changes)")
     except Exception as exc:
         logger.error("Could not run Alembic migrations: %s", exc)
 
@@ -99,6 +102,12 @@ def create_app() -> FastAPI:
     app.include_router(documents.router, prefix="/documents", tags=["Documents"])
     app.include_router(pages.router, prefix="/documents", tags=["Pages"])
     app.include_router(search.router, tags=["Search"])
+    # Phase 2 routers
+    app.include_router(facts.router)
+    app.include_router(entities.router)
+    app.include_router(conflicts.router)
+    app.include_router(flags.router)
+    app.include_router(duplicates.router)
 
     @app.get("/health", tags=["Health"])
     async def health():

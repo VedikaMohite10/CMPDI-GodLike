@@ -29,8 +29,18 @@ class Settings(BaseSettings):
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     EMBEDDING_MODEL: str = "bge-m3:latest"
     VLM_MODEL: str = "qwen2.5vl:3b"
-    # Timeout (seconds) for a single Ollama call — VLM on CPU can be slow
+    # Phase 2: Fact extraction LLM — 7b default; set to qwen2.5:14b-instruct-q4_K_M for better accuracy
+    FACT_LLM_MODEL: str = "qwen2.5:7b-instruct-q4_K_M"
+    # Timeout (seconds) for a single Ollama call — VLM/LLM on CPU can be slow
     OLLAMA_TIMEOUT_SECONDS: int = 300
+
+    # ------------------------------------------------------------------
+    # Phase 2 — Data Trust Engine
+    # ------------------------------------------------------------------
+    # Numeric difference (percent) to trigger a conflict record
+    CONFLICT_THRESHOLD_PCT: float = 5.0
+    # Minimum cosine similarity for embedding-based entity resolution
+    ENTITY_EMBEDDING_THRESHOLD: float = 0.92
 
     # ------------------------------------------------------------------
     # OCR strategy

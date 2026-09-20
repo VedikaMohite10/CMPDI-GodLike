@@ -1,4 +1,1 @@
-"""Package init for routers."""
-from app.routers import documents, pages, search
-
-__all__ = ["documents", "pages", "search"]
+# routers package — submodules are imported directly in app/main.py
