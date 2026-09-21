@@ -37,3 +37,14 @@ Access web UI at http://localhost:6333/dashboard
 2026-09-20T11:34:38.192278Z  INFO actix_web::middleware::logger: 127.0.0.1 "POST /collections/mining_text_blocks/points/search HTTP/1.1" 200 692 "-" "qdrant-client/1.13.3 python/3.13.9" 0.000460    
 2026-09-20T12:23:11.364887Z  INFO actix_web::middleware::logger: 127.0.0.1 "GET /collections HTTP/1.1" 200 99 "-" "qdrant-client/1.13.3 python/3.13.9" 0.000097    
 2026-09-20T12:38:08.511284Z  INFO actix_web::middleware::logger: 127.0.0.1 "GET /collections HTTP/1.1" 200 101 "-" "qdrant-client/1.13.3 python/3.13.9" 0.005920    
+2026-09-21T08:21:35.735388Z  INFO actix_server::server: SIGTERM received; starting graceful shutdown
+2026-09-21T08:21:35.857585Z  INFO actix_server::worker: Shutting down idle worker
+2026-09-21T08:21:35.857614Z  INFO actix_server::worker: Shutting down idle worker
+2026-09-21T08:21:35.857677Z  INFO actix_server::worker: Shutting down idle worker
+2026-09-21T08:21:35.857695Z  INFO actix_server::worker: Shutting down idle worker
+2026-09-21T08:21:35.858236Z  INFO actix_server::worker: Shutting down idle worker
+2026-09-21T08:21:35.858577Z  INFO actix_server::worker: Shutting down idle worker
+2026-09-21T08:21:35.861168Z  INFO actix_server::accept: Accept thread stopped
+2026-09-21T08:21:35.861228Z  INFO actix_server::worker: Shutting down idle worker
+2026-09-21T08:21:35.857703Z  INFO actix_server::worker: Shutting down idle worker
+2026-09-21T08:21:35.858673Z  INFO actix_server::worker: Shutting down idle worker

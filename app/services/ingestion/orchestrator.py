@@ -64,6 +64,7 @@ async def _run_pipeline(document_id: uuid.UUID, db: AsyncSession) -> None:
     # ------------------------------------------------------------------
     doc.processing_status = "processing"
     doc.updated_at = datetime.now(timezone.utc)
+    doc.ingestion_started_at = datetime.now(timezone.utc)
     await db.commit()
     logger.info("Processing document %s (%s)…", document_id, doc.file_type)
 
@@ -206,6 +207,7 @@ async def _run_pipeline(document_id: uuid.UUID, db: AsyncSession) -> None:
     doc.processing_status = "done"
     doc.processing_error = None
     doc.updated_at = datetime.now(timezone.utc)
+    doc.ingestion_completed_at = datetime.now(timezone.utc)
     await db.commit()
     logger.info("Document %s processing complete.", document_id)
 

@@ -85,6 +85,24 @@ class Settings(BaseSettings):
     CHUNK_OVERLAP_CHARS: int = 200
 
     # ------------------------------------------------------------------
+    # Phase 4 — Report Generation
+    # ------------------------------------------------------------------
+    # Where exported report files are stored on disk (relative to project root)
+    REPORT_STORAGE_ROOT: str = "./storage/reports"
+    # Max tokens for LLM narrative generation per section (executive summary, etc.)
+    REPORT_NARRATIVE_MAX_TOKENS: int = 1024
+
+    # ------------------------------------------------------------------
+    # Phase 4 — Topic Clustering
+    # ------------------------------------------------------------------
+    # Divisor for computing HDBSCAN min_cluster_size = max(3, n_docs // divisor)
+    TOPIC_MIN_CLUSTER_SIZE_DIVISOR: int = 20
+    # k for k-means fallback when HDBSCAN produces >80% noise or n_docs < 10
+    TOPIC_FALLBACK_K: int = 8
+    # Top-N TF-IDF keywords to store per cluster
+    TOPIC_TOP_KEYWORDS: int = 20
+
+    # ------------------------------------------------------------------
     # Application
     # ------------------------------------------------------------------
     APP_TITLE: str = "CMPDI AI Mining Intelligence Platform"

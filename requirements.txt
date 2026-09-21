@@ -1,5 +1,5 @@
 # =============================================================================
-# CMPDI AI Mining Intelligence Platform — Phase 1
+# CMPDI AI Mining Intelligence Platform — Phases 1–4
 # =============================================================================
 
 # ---------- Web Framework ----------
@@ -41,3 +41,12 @@ httpx>=0.27.0                 # async HTTP client for Ollama embedding/VLM calls
 
 # ---------- Vector DB ----------
 qdrant-client>=1.9.1          # Qdrant HTTP client (sync + async)
+
+# ---------- Phase 4: Report Generation ----------
+reportlab>=4.2.0              # PDF generation (self-hosted, no external API)
+matplotlib>=3.9.0             # Chart rendering for report exports (PDF/DOCX embeds)
+
+# ---------- Phase 4: Topic Clustering ----------
+scikit-learn>=1.5.0           # TF-IDF (CountVectorizer/TfidfVectorizer) + HDBSCAN
+                              # sklearn.cluster.HDBSCAN available since 1.3 — no separate hdbscan pkg needed
+numpy>=1.26.0                 # Required by scikit-learn; also used for embedding mean computation

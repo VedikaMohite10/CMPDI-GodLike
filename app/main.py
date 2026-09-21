@@ -17,6 +17,11 @@ from app.routers import facts, entities, conflicts, flags, duplicates
 # Phase 3 routers
 from app.routers import query as query_router
 from app.routers import analytics as analytics_router
+# Phase 4 routers
+from app.routers import reports as reports_router
+from app.routers import topics as topics_router
+from app.routers import review as review_router
+from app.routers import dashboard as dashboard_router
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -64,6 +69,7 @@ async def lifespan(app: FastAPI):
     from pathlib import Path
     Path(settings.STORAGE_ROOT, "documents").mkdir(parents=True, exist_ok=True)
     Path(settings.STORAGE_ROOT, "images").mkdir(parents=True, exist_ok=True)
+    Path(settings.REPORT_STORAGE_ROOT).mkdir(parents=True, exist_ok=True)
 
     yield  # ← application runs here
 
@@ -73,13 +79,12 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.APP_TITLE,
-        version="1.0.0-phase3",
+        version="1.0.0-phase4",
         description=(
-            "CMPDI AI Mining Intelligence Platform — Phase 3. "
-            "Deterministic Analytics Engine (YoY, CAGR, trend, anomaly), "
-            "Why-Did-This-Change Engine, Explainable AI packaging, "
-            "and AI Query & Response Copilot. "
-            "All numeric results are deterministic; LLM is grounded strictly in retrieved evidence."
+            "CMPDI AI Mining Intelligence Platform — Phase 4. "
+            "Automated Report Generation (PDF/DOCX/XLSX), Word Cloud & Topic Identification, "
+            "Human Verification Console (audit trail), and live Data Quality Dashboard. "
+            "All numbers are deterministic and evidence-backed; LLM grounded strictly in retrieved data."
         ),
         docs_url="/docs",
         redoc_url="/redoc",
@@ -115,6 +120,11 @@ def create_app() -> FastAPI:
     # Phase 3 — Analytics Engine + AI Query Copilot
     app.include_router(query_router.router)
     app.include_router(analytics_router.router)
+    # Phase 4 — Report Generation, Topics, Review Console, Dashboard
+    app.include_router(reports_router.router)
+    app.include_router(topics_router.router)
+    app.include_router(review_router.router)
+    app.include_router(dashboard_router.router)
 
     @app.get("/health", tags=["Health"])
     async def health():

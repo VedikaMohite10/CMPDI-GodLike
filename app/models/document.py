@@ -3,10 +3,9 @@ import uuid
 from datetime import datetime, date
 from typing import Optional, List
 
-from sqlalchemy import String, Boolean, Integer, BigInteger, DateTime, Date, Text
+from sqlalchemy import String, Boolean, Integer, BigInteger, DateTime, Date, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy.sql import func
 
 from app.database import Base
 
@@ -37,6 +36,15 @@ class Document(Base):
         String(50), nullable=False, default="pending", server_default="'pending'"
     )
     processing_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Ingestion timing — written by the ingestion pipeline so the dashboard
+    # can compute avg document processing time (Phase 4). NULL for documents
+    # ingested before migration 0004 (acceptable; dashboard returns null with a note).
+    ingestion_started_at:   Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    ingestion_completed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

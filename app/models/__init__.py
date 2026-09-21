@@ -8,6 +8,10 @@ from app.models.phase2 import (
     ValidationFlag, Conflict, DuplicateCandidate, FactProcessingLog,
     QueryResponse,
 )
+# Phase 4
+from app.models.phase4 import (
+    GeneratedReport, TopicCluster, DocumentTopicAssignment, AuditLog,
+)
 
 __all__ = [
     "Document", "Page", "ExtractedTextBlock", "ExtractedTable", "ExtractedImage",
@@ -15,5 +19,6 @@ __all__ = [
     "CanonicalEntity", "EntityAlias", "ExtractedFact", "NormalizedFact",
     "ValidationFlag", "Conflict", "DuplicateCandidate", "FactProcessingLog",
     "QueryResponse",
+    # Phase 4
+    "GeneratedReport", "TopicCluster", "DocumentTopicAssignment", "AuditLog",
 ]
-
