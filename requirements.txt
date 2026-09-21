@@ -1,5 +1,5 @@
 # =============================================================================
-# CMPDI AI Mining Intelligence Platform — Phases 1–4
+# CMPDI AI Mining Intelligence Platform — Phases 1–5
 # =============================================================================
 
 # ---------- Web Framework ----------
@@ -50,3 +50,14 @@ matplotlib>=3.9.0             # Chart rendering for report exports (PDF/DOCX emb
 scikit-learn>=1.5.0           # TF-IDF (CountVectorizer/TfidfVectorizer) + HDBSCAN
                               # sklearn.cluster.HDBSCAN available since 1.3 — no separate hdbscan pkg needed
 numpy>=1.26.0                 # Required by scikit-learn; also used for embedding mean computation
+
+# ---------- Phase 5: Security / Auth ----------
+python-jose[cryptography]>=3.3.0  # HS256 JWT encode/decode
+passlib[bcrypt]>=1.7.4            # Password hashing (bcrypt)
+
+# ---------- Phase 5: Forecasting ----------
+statsmodels>=0.14.0           # Exponential smoothing + ARIMA for the forecasting engine (CPU-only)
+
+# ---------- Phase 5: Rate Limiting ----------
+slowapi>=0.1.9                # FastAPI rate-limit middleware (wraps limits library)
+limits>=3.6.0                 # Required by slowapi

@@ -1,12 +1,12 @@
-"""Human Verification Console router — Phase 4.
+"""Human Verification Console router — Phase 4 / Phase 5.
 
-GET  /review/flags
-POST /review/flags/{id}/accept
-POST /review/flags/{id}/correct
-POST /review/flags/{id}/reject
-GET  /review/conflicts
-POST /review/conflicts/{id}/resolve
-GET  /review/audit-log
+GET  /review/flags                    — analyst+
+POST /review/flags/{id}/accept        — reviewer+ (RBAC gated)
+POST /review/flags/{id}/correct       — reviewer+ (RBAC gated)
+POST /review/flags/{id}/reject        — reviewer+ (RBAC gated)
+GET  /review/conflicts                — analyst+
+POST /review/conflicts/{id}/resolve   — reviewer+ (RBAC gated)
+GET  /review/audit-log                — reviewer+ (RBAC gated)
 """
 from __future__ import annotations
 
@@ -23,12 +23,14 @@ from app.models.phase2 import (
 )
 from app.models.document import Document
 from app.models.page import Page
+from app.models.phase5 import User
 from app.schemas.common import PaginatedResponse
 from app.schemas.review import (
     AuditLogItemOut, AuditLogListResponse,
     FlagAcceptRequest, FlagCorrectRequest, FlagRejectRequest,
     ConflictResolveRequest, ReviewActionResponse,
 )
+from app.services.auth.dependencies import get_current_user, require_role
 from app.services.review.review_service import (
     accept_flag, correct_flag, reject_flag, resolve_conflict, list_audit_log,
     VALID_RESOLUTIONS,
@@ -116,6 +118,7 @@ async def flag_accept(
     flag_id: uuid.UUID,
     req: FlagAcceptRequest,
     db: AsyncSession = Depends(get_db),
+    _reviewer: User = Depends(require_role("reviewer", "admin")),
 ):
     try:
         entry = await accept_flag(db=db, flag_id=flag_id, reviewer=req.reviewer, note=req.note)
@@ -132,6 +135,7 @@ async def flag_correct(
     flag_id: uuid.UUID,
     req: FlagCorrectRequest,
     db: AsyncSession = Depends(get_db),
+    _reviewer: User = Depends(require_role("reviewer", "admin")),
 ):
     try:
         entry = await correct_flag(
@@ -155,6 +159,7 @@ async def flag_reject(
     flag_id: uuid.UUID,
     req: FlagRejectRequest,
     db: AsyncSession = Depends(get_db),
+    _reviewer: User = Depends(require_role("reviewer", "admin")),
 ):
     try:
         entry = await reject_flag(db=db, flag_id=flag_id, reviewer=req.reviewer, note=req.note)
@@ -234,6 +239,7 @@ async def conflict_resolve(
     conflict_id: uuid.UUID,
     req: ConflictResolveRequest,
     db: AsyncSession = Depends(get_db),
+    _reviewer: User = Depends(require_role("reviewer", "admin")),
 ):
     try:
         entry = await resolve_conflict(
@@ -266,6 +272,7 @@ async def audit_log_list(
     page:        int                 = Query(1, ge=1),
     page_size:   int                 = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
+    _reviewer: User = Depends(require_role("reviewer", "admin")),
 ):
     entries, total = await list_audit_log(
         db=db, action_type=action_type, reviewer=reviewer,

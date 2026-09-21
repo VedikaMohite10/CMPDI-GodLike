@@ -1,0 +1,63 @@
+{
+  "$schema": "benchmark_ground_truth/schema.json",
+  "label_set_name": "cil_annual_report_real_01",
+  "is_synthetic": false,
+  "synthetic_type": null,
+  "description": "Ground truth labels for CIL/CMPDI public annual report documents ingested in Phase 1-2 testing. Values manually verified against source documents.",
+  "labels": [
+    {
+      "label_type": "entity",
+      "alias_text": "Coal India Limited",
+      "expected_canonical_name": "Coal India Limited",
+      "note": "Exact match — should resolve without ambiguity"
+    },
+    {
+      "label_type": "entity",
+      "alias_text": "Bharat Coking Coal Limited",
+      "expected_canonical_name": "BCCL",
+      "note": "Full-name alias should resolve to BCCL canonical"
+    },
+    {
+      "label_type": "entity",
+      "alias_text": "Bharat Coking Coal Ltd.",
+      "expected_canonical_name": "BCCL",
+      "note": "Punctuation variant"
+    },
+    {
+      "label_type": "entity",
+      "alias_text": "Central Coalfields Limited",
+      "expected_canonical_name": "CCL",
+      "note": "Full-name alias → CCL"
+    },
+    {
+      "label_type": "entity",
+      "alias_text": "CMPDI",
+      "expected_canonical_name": "CMPDI",
+      "note": "Acronym exact match"
+    },
+    {
+      "label_type": "fact",
+      "entity": "Coal India Limited",
+      "metric": "coal_production",
+      "expected_unit": "MT",
+      "expected_period": "2022-2023",
+      "note": "Coal production should be normalized to MT (Million Tonnes)"
+    },
+    {
+      "label_type": "fact",
+      "entity": "BCCL",
+      "metric": "coal_production",
+      "expected_unit": "MT",
+      "expected_period": "2022-2023",
+      "note": "BCCL production normalized to MT"
+    },
+    {
+      "label_type": "fact",
+      "entity": "NCL",
+      "metric": "coal_dispatch",
+      "expected_unit": "MT",
+      "expected_period": "2022-2023",
+      "note": "Dispatch metric normalized to MT"
+    }
+  ]
+}

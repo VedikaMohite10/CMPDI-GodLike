@@ -1,0 +1,38 @@
+{
+  "version": "1.0",
+  "description": "Schema for CMPDI benchmark ground truth label files.",
+  "label_types": {
+    "entity": {
+      "required": ["alias_text", "expected_canonical_name"],
+      "optional": ["note"],
+      "description": "Tests entity alias resolution. alias_text is looked up in entity_aliases; expected_canonical_name must match the resolved canonical entity."
+    },
+    "fact": {
+      "required": ["entity", "metric", "expected_unit"],
+      "optional": ["expected_value", "expected_period", "document_id", "note"],
+      "description": "Tests unit normalization. Checks that at least one normalized_fact for entity/metric has the expected normalized_unit."
+    },
+    "text_extraction": {
+      "required": ["document_id", "expected_text_excerpt"],
+      "optional": ["note"],
+      "description": "Tests text extraction. expected_text_excerpt is compared to extracted text blocks from the document using character-level match rate."
+    },
+    "table_extraction": {
+      "required": ["document_id", "expected_value"],
+      "optional": ["expected_cell_text", "note"],
+      "description": "Tests table extraction. Checks that expected_value appears in any cell of any extracted table for the document."
+    },
+    "conflict": {
+      "required": ["entity", "metric", "expected_conflict"],
+      "optional": ["expected_period", "value_a", "value_b", "expected_delta_pct", "note"],
+      "description": "Tests conflict detection. If expected_conflict=true, the system must have flagged a conflict for this entity/metric. Drives precision/recall computation."
+    },
+    "citation": {
+      "required": ["entity", "metric", "expected_document_id"],
+      "optional": ["expected_page_number", "note"],
+      "description": "Tests citation accuracy. Checks that a normalized_fact for entity/metric traces back (via extracted_fact) to the expected document."
+    }
+  },
+  "is_synthetic_rule": "is_synthetic MUST be true for any label set derived from deliberately constructed stress-test documents. synthetic_type must also be set. These results are NEVER aggregated with real document results.",
+  "synthetic_types": ["ocr_errors", "unit_variations", "conflict_injection", "fragmented_fact"]
+}

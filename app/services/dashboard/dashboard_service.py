@@ -31,6 +31,7 @@ from app.models.phase2 import (
     Conflict, DuplicateCandidate, ExtractedFact, NormalizedFact, ValidationFlag,
 )
 from app.models.phase4 import AuditLog, GeneratedReport
+from app.models.phase5 import BenchmarkRun
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,7 @@ async def compute_dashboard_stats(db: AsyncSession) -> dict:
     review       = await _review_stats(db)
     automation   = _compute_automation(review)
     performance  = await _performance_stats(db)
+    benchmark    = await _benchmark_stats(db)
 
     return {
         "computed_at":    now.isoformat(),
@@ -56,6 +58,7 @@ async def compute_dashboard_stats(db: AsyncSession) -> dict:
         "review":         review,
         "automation":     automation,
         "performance":    performance,
+        "benchmark":      benchmark,
     }
 
 
@@ -337,5 +340,61 @@ async def _performance_stats(db: AsyncSession) -> dict:
             "avg_phase2_processing_time_seconds requires FactProcessingLog rows with both "
             "started_at and completed_at populated. "
             "avg_report_generation_time_seconds requires at least one completed report."
+        ),
+    }
+
+
+async def _benchmark_stats(db: AsyncSession) -> dict:
+    """Return a summary of the latest benchmark run for the dashboard.
+
+    Design contract:
+      - real and synthetic metrics are NEVER merged; they are always in separate keys.
+      - If no benchmark run exists yet, returns {"available": false}.
+      - synthetic_doc_ids is listed so the dashboard can display provenance labels.
+    """
+    latest = (
+        await db.execute(
+            select(BenchmarkRun)
+            .where(BenchmarkRun.is_latest.is_(True))
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+
+    if latest is None:
+        # Fallback: try the most recent run (is_latest may not have been set yet)
+        latest = (
+            await db.execute(
+                select(BenchmarkRun)
+                .order_by(BenchmarkRun.run_at.desc())
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+
+    if latest is None:
+        return {
+            "available": False,
+            "note":      "No benchmark run has been executed yet. POST /benchmark/run to generate one.",
+        }
+
+    total_runs = (
+        await db.execute(select(func.count()).select_from(BenchmarkRun))
+    ).scalar_one()
+
+    return {
+        "available":               True,
+        "latest_run_id":           str(latest.id),
+        "latest_run_at":           latest.run_at.isoformat(),
+        "document_count_real":     latest.document_count_real,
+        "document_count_synthetic":latest.document_count_synthetic,
+        "sample_size":             latest.sample_size,
+        "run_note":                latest.run_note,
+        # Real and synthetic are ALWAYS in separate keys — never aggregated.
+        "real_metrics":            latest.results.get("real"),
+        "synthetic_metrics":       latest.results.get("synthetic"),
+        "synthetic_doc_ids":       latest.results.get("synthetic_doc_ids", []),
+        "total_runs":              total_runs,
+        "note": (
+            "real_metrics and synthetic_metrics are computed from separate label sets "
+            "and are never aggregated into a single accuracy number."
         ),
     }

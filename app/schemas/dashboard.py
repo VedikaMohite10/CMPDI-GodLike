@@ -1,8 +1,8 @@
-"""Pydantic schemas for the Data Quality Dashboard API (Phase 4)."""
+"""Pydantic schemas for the Data Quality Dashboard API (Phase 4 + Phase 5)."""
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
 
@@ -66,6 +66,26 @@ class PerformanceStats(BaseModel):
     note_on_nulls:                        str
 
 
+class BenchmarkStats(BaseModel):
+    """Phase 5 — Benchmark harness summary for the dashboard.
+
+    real_metrics and synthetic_metrics are ALWAYS kept separate
+    and are NEVER aggregated into a single accuracy number.
+    """
+    available:                 bool
+    note:                      Optional[str]             = None
+    latest_run_id:             Optional[str]             = None
+    latest_run_at:             Optional[str]             = None
+    document_count_real:       Optional[int]             = None
+    document_count_synthetic:  Optional[int]             = None
+    sample_size:               Optional[int]             = None
+    run_note:                  Optional[str]             = None
+    real_metrics:              Optional[Dict[str, Any]]  = None
+    synthetic_metrics:         Optional[Dict[str, Any]]  = None
+    synthetic_doc_ids:         Optional[List[str]]       = None
+    total_runs:                Optional[int]             = None
+
+
 class DashboardStatsResponse(BaseModel):
     computed_at:    datetime
     pipeline:       PipelineStats
@@ -75,3 +95,4 @@ class DashboardStatsResponse(BaseModel):
     review:         ReviewStats
     automation:     AutomationStats
     performance:    PerformanceStats
+    benchmark:      Optional[BenchmarkStats] = None   # Phase 5: benchmark harness summary

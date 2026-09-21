@@ -55,6 +55,16 @@ class Document(Base):
         onupdate=func.now(),
     )
 
+    # Phase 5 — Benchmark harness provenance.
+    # is_synthetic = True for any document that was deliberately constructed
+    # as a stress-test input for the benchmark harness.  These documents MUST
+    # NOT be used as training data or cited as real CMPDI data.
+    # synthetic_type mirrors BenchmarkGroundTruth.synthetic_type (e.g. "conflict_injection").
+    is_synthetic: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    synthetic_type: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
     # Relationships
     pages: Mapped[List["Page"]] = relationship(  # noqa: F821
         "Page", back_populates="document", cascade="all, delete-orphan", lazy="select"

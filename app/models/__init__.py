@@ -12,6 +12,11 @@ from app.models.phase2 import (
 from app.models.phase4 import (
     GeneratedReport, TopicCluster, DocumentTopicAssignment, AuditLog,
 )
+# Phase 5
+from app.models.phase5 import (
+    User, ParliamentaryQuery, RegionMapping,
+    ForecastResult, BenchmarkRun, BenchmarkGroundTruth,
+)
 
 __all__ = [
     "Document", "Page", "ExtractedTextBlock", "ExtractedTable", "ExtractedImage",
@@ -21,4 +26,7 @@ __all__ = [
     "QueryResponse",
     # Phase 4
     "GeneratedReport", "TopicCluster", "DocumentTopicAssignment", "AuditLog",
+    # Phase 5
+    "User", "ParliamentaryQuery", "RegionMapping",
+    "ForecastResult", "BenchmarkRun", "BenchmarkGroundTruth",
 ]

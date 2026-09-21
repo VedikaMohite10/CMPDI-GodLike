@@ -1,0 +1,35 @@
+{
+  "$schema": "../schema.json",
+  "label_set_name": "synthetic_conflict_injection_01",
+  "is_synthetic": true,
+  "synthetic_type": "conflict_injection",
+  "description": "Synthetic stress-test document with deliberately injected conflicts. Two tables report the same entity/metric/period with a >10% discrepancy. Ground truth: the system MUST detect and flag these as conflicts. This document does NOT represent real CMPDI data.",
+  "synthetic_document_content_description": "Two tables: Table A reports BCCL coal_production 2022-23 = 24.5 MT; Table B reports BCCL coal_production 2022-23 = 27.1 MT (discrepancy ~10.6%). Both appear in the same synthetic PDF.",
+  "labels": [
+    {
+      "label_type": "conflict",
+      "entity": "BCCL",
+      "metric": "coal_production",
+      "expected_period": "2022-2023",
+      "expected_conflict": true,
+      "value_a": 24.5,
+      "value_b": 27.1,
+      "expected_delta_pct": 10.6,
+      "note": "System must detect this as an open conflict. If conflict not flagged, this is a FN (false negative)."
+    },
+    {
+      "label_type": "entity",
+      "alias_text": "BCCL",
+      "expected_canonical_name": "BCCL",
+      "note": "Entity should still resolve correctly even in conflicted document"
+    },
+    {
+      "label_type": "fact",
+      "entity": "BCCL",
+      "metric": "coal_production",
+      "expected_unit": "MT",
+      "expected_period": "2022-2023",
+      "note": "At least one fact must be normalized to MT regardless of the conflict"
+    }
+  ]
+}

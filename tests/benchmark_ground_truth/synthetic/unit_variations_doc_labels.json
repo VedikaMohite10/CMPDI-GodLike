@@ -1,0 +1,25 @@
+{
+  "$schema": "../schema.json",
+  "label_set_name": "synthetic_unit_variations_01",
+  "is_synthetic": true,
+  "synthetic_type": "unit_variations",
+  "description": "Synthetic stress-test document expressing the same values in different units across tables (MT vs t vs lakh tonnes). Ground truth: all values must be normalized to MT. NOT real CMPDI data.",
+  "synthetic_document_content_description": "Table A: CCL production = 68,500,000 t (tonnes). Table B: CCL production = 68.5 MT. Table C: CCL production = 685 lakh tonnes. All three refer to the same period (2021-22) and should normalize to the same value.",
+  "labels": [
+    {
+      "label_type": "fact",
+      "entity": "CCL",
+      "metric": "coal_production",
+      "expected_value": 68.5,
+      "expected_unit": "MT",
+      "expected_period": "2021-2022",
+      "note": "68,500,000 tonnes = 68.5 MT. System must normalize all three representations to this."
+    },
+    {
+      "label_type": "entity",
+      "alias_text": "Central Coalfields Limited",
+      "expected_canonical_name": "CCL",
+      "note": "Entity alias resolution check"
+    }
+  ]
+}

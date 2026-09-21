@@ -1,0 +1,26 @@
+[
+  {
+    "question": "What is the coal production of Coal India Limited?",
+    "entity": "Coal India Limited",
+    "metric": "coal_production",
+    "expected_value": null,
+    "tolerance_pct": 1.0,
+    "note": "Expected value null = any non-null normalized value is a pass for this check (tests that data exists)"
+  },
+  {
+    "question": "What is the coal production of BCCL?",
+    "entity": "BCCL",
+    "metric": "coal_production",
+    "expected_value": null,
+    "tolerance_pct": 1.0,
+    "note": "Checks that BCCL production fact exists and resolves"
+  },
+  {
+    "question": "What is CCL coal dispatch?",
+    "entity": "CCL",
+    "metric": "coal_dispatch",
+    "expected_value": null,
+    "tolerance_pct": 1.0,
+    "note": "Checks dispatch metric resolution for CCL"
+  }
+]

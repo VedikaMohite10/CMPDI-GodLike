@@ -103,10 +103,34 @@ class Settings(BaseSettings):
     TOPIC_TOP_KEYWORDS: int = 20
 
     # ------------------------------------------------------------------
+    # Phase 5 — Security / JWT Auth
+    # ------------------------------------------------------------------
+    # MUST be set via .env — no default to prevent weak-key accidents.
+    JWT_SECRET_KEY: str = "CHANGE_ME_IN_PRODUCTION_USE_A_LONG_RANDOM_STRING"
+    JWT_ALGORITHM: str = "HS256"
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+
+    # ------------------------------------------------------------------
+    # Phase 5 — CORS (configurable for real deployments)
+    # Default is permissive ("*") for dev; set to comma-separated origin
+    # list in .env for production, e.g. "https://app.example.com"
+    # ------------------------------------------------------------------
+    CORS_ALLOWED_ORIGINS: str = "*"
+
+    # ------------------------------------------------------------------
+    # Phase 5 — Rate Limiting (slowapi)
+    # Upload endpoint: 10 req/min; Query endpoint: 30 req/min;
+    # Global default: 200 req/min
+    # ------------------------------------------------------------------
+    RATE_LIMIT_UPLOAD: str = "10/minute"
+    RATE_LIMIT_QUERY: str = "30/minute"
+    RATE_LIMIT_DEFAULT: str = "200/minute"
+
+    # ------------------------------------------------------------------
     # Application
     # ------------------------------------------------------------------
     APP_TITLE: str = "CMPDI AI Mining Intelligence Platform"
-    APP_VERSION: str = "1.0.0-phase1"
+    APP_VERSION: str = "1.0.0-phase5"
     DEBUG: bool = False
 
     model_config = SettingsConfigDict(

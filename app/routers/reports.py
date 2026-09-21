@@ -1,9 +1,11 @@
-"""Reports router — Phase 4.
+"""Reports router — Phase 4 / Phase 5.
 
 POST /reports/generate
 GET  /reports
 GET  /reports/{id}
 GET  /reports/{id}/export?format=pdf|docx|xlsx
+
+Phase 5 addition: audit log entry written on every successful report generation.
 """
 from __future__ import annotations
 
@@ -15,6 +17,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.models.phase4 import AuditLog
 from app.schemas.reports import (
     ReportGenerateRequest, ReportGenerateResponse,
     ReportContentOut, ReportListItem, ReportScopeOut,
@@ -59,6 +62,28 @@ async def generate_report(
 
     if db_row.status == "failed":
         raise HTTPException(status_code=500, detail=db_row.error or "Report generation failed.")
+
+    # A1 Audit log — record every successful report generation
+    try:
+        audit = AuditLog(
+            reviewer="system",
+            action_type="report_generated",
+            target_table="generated_reports",
+            target_id=db_row.id,
+            before_value=None,
+            after_value={
+                "status":    db_row.status,
+                "label":     label,
+                "period_start": str(req.period_start) if req.period_start else None,
+                "period_end":   str(req.period_end)   if req.period_end   else None,
+                "entity_ids":   [str(e) for e in (req.entity_ids or [])],
+            },
+            note=f"Report '{label}' generated automatically.",
+        )
+        db.add(audit)
+        await db.commit()
+    except Exception:
+        pass  # audit failure must never block the response
 
     scope_out = ReportScopeOut(
         entity_ids=req.entity_ids,

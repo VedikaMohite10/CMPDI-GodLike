@@ -2,8 +2,8 @@
 
 Responsibilities:
 - Register all routers
-- Configure CORS (permissive for dev — see TODO below)
-- On startup: run Alembic migrations + create Qdrant collection
+- Configure CORS (configurable via CORS_ALLOWED_ORIGINS env var)
+- On startup: run Alembic migrations + create Qdrant collection + bootstrap admin
 """
 import logging
 from contextlib import asynccontextmanager
@@ -22,6 +22,12 @@ from app.routers import reports as reports_router
 from app.routers import topics as topics_router
 from app.routers import review as review_router
 from app.routers import dashboard as dashboard_router
+# Phase 5 routers
+from app.routers import auth as auth_router
+from app.routers import parliamentary as parliamentary_router
+from app.routers import map as map_router
+from app.routers import forecast as forecast_router
+from app.routers import benchmark as benchmark_router
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -71,6 +77,18 @@ async def lifespan(app: FastAPI):
     Path(settings.STORAGE_ROOT, "images").mkdir(parents=True, exist_ok=True)
     Path(settings.REPORT_STORAGE_ROOT).mkdir(parents=True, exist_ok=True)
 
+    # -----------------------------------------------------------------
+    # Phase 5 — Bootstrap admin user (idempotent; skips if any user exists)
+    # -----------------------------------------------------------------
+    try:
+        from app.database import get_db as _get_db
+        from app.services.auth.auth_service import ensure_bootstrap_admin
+        async for db in _get_db():
+            await ensure_bootstrap_admin(db)
+            break
+    except Exception as exc:
+        logger.error("Could not create bootstrap admin: %s", exc)
+
     yield  # ← application runs here
 
     logger.info("Shutting down CMPDI API.")
@@ -79,11 +97,12 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.APP_TITLE,
-        version="1.0.0-phase4",
+        version="1.0.0-phase5",
         description=(
-            "CMPDI AI Mining Intelligence Platform — Phase 4. "
-            "Automated Report Generation (PDF/DOCX/XLSX), Word Cloud & Topic Identification, "
-            "Human Verification Console (audit trail), and live Data Quality Dashboard. "
+            "CMPDI AI Mining Intelligence Platform — Phase 5. "
+            "JWT/RBAC Security, Parliamentary Query Copilot, Mining Heat Map, "
+            "Forecasting Engine (MA/SES/ARIMA ladder), Benchmarking Harness, "
+            "Automated Report Generation, Human Verification Console, and live Data Quality Dashboard. "
             "All numbers are deterministic and evidence-backed; LLM grounded strictly in retrieved data."
         ),
         docs_url="/docs",
@@ -93,14 +112,23 @@ def create_app() -> FastAPI:
     )
 
     # -----------------------------------------------------------------
-    # CORS — permissive for dev so any frontend origin can call this API.
-    # TODO (Phase 3+): Restrict allow_origins to known frontend origins.
-    # TODO (Phase 3+): Add auth middleware before tightening CORS.
+    # CORS — configurable via CORS_ALLOWED_ORIGINS env var.
+    # Set to "*" for dev permissiveness; set to comma-separated origin list
+    # for production (e.g. "https://app.example.com,https://admin.example.com").
+    # When allow_origins != ["*"], allow_credentials can be True.
     # -----------------------------------------------------------------
+    raw_origins = settings.CORS_ALLOWED_ORIGINS.strip()
+    if raw_origins == "*":
+        allow_origins = ["*"]
+        allow_credentials = False  # must be False when allow_origins=["*"]
+    else:
+        allow_origins = [o.strip() for o in raw_origins.split(",") if o.strip()]
+        allow_credentials = True
+
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=False,   # must be False when allow_origins=["*"]
+        allow_origins=allow_origins,
+        allow_credentials=allow_credentials,
         allow_methods=["*"],
         allow_headers=["*"],
     )
@@ -125,6 +153,12 @@ def create_app() -> FastAPI:
     app.include_router(topics_router.router)
     app.include_router(review_router.router)
     app.include_router(dashboard_router.router)
+    # Phase 5 — Security/Auth, Parliamentary Copilot, Map, Forecast, Benchmark
+    app.include_router(auth_router.router)
+    app.include_router(parliamentary_router.router)
+    app.include_router(map_router.router)
+    app.include_router(forecast_router.router)
+    app.include_router(benchmark_router.router)
 
     @app.get("/health", tags=["Health"])
     async def health():

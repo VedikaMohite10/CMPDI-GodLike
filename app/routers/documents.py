@@ -21,6 +21,7 @@ from app.config import get_settings
 from app.database import get_db
 from app.models.document import Document
 from app.models.extraction import ExtractedImage, ExtractedTable, ExtractedTextBlock
+from app.models.phase4 import AuditLog
 from app.models.vector_log import VectorIndexLog
 from app.schemas.common import PaginatedResponse
 from app.schemas.document import (
@@ -117,6 +118,26 @@ async def upload_documents(
         )
         db.add(doc)
         await db.flush()
+
+        # 6b. Audit log entry for document upload
+        try:
+            audit = AuditLog(
+                reviewer="system",
+                action_type="document_uploaded",
+                target_table="documents",
+                target_id=doc_id,
+                before_value=None,
+                after_value={
+                    "filename":        safe_name,
+                    "file_type":       ft_result.file_type,
+                    "file_size_bytes": len(raw),
+                    "processing_status": "pending",
+                },
+                note=f"Document '{upload.filename}' uploaded and queued for processing.",
+            )
+            db.add(audit)
+        except Exception:
+            pass  # audit failure must not block upload
 
         # 7. Queue background processing
         background_tasks.add_task(process_document, doc_id)
