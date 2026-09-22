@@ -37,3 +37,8 @@ storage/images/
 .qdrant/
 .qdrant-initialized
 snapshots/
+
+# Node / Frontend
+node_modules/
+frontend/node_modules/
+frontend/dist/

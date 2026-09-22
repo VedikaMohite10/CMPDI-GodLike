@@ -1,0 +1,265 @@
+/* Central Mine Planning & Design Institute (CMPDI) / Coal India Limited
+   Unified Institutional Platform Design System */
+
+.platform-app-shell {
+  min-height: 100vh;
+  background: var(--page-bg);
+  color: var(--text-primary);
+  display: flex;
+  flex-direction: column;
+}
+
+.platform-main-container {
+  width: min(1420px, calc(100% - 64px));
+  margin: 0 auto;
+  padding: 32px 0 48px;
+  flex: 1;
+}
+
+/* Page Intro & Typography System */
+.platform-page-header {
+  margin-bottom: 24px;
+}
+
+.platform-kicker {
+  margin: 0 0 8px;
+  color: var(--steel-700);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.platform-page-header h1,
+.platform-heading-serif {
+  margin: 0;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(2.2rem, 3vw, 3.2rem);
+  line-height: 1.08;
+  color: var(--navy-900);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+}
+
+.platform-page-header p,
+.platform-subtitle {
+  margin: 10px 0 0;
+  color: var(--text-secondary);
+  font-size: 15px;
+  line-height: 1.55;
+  max-width: 680px;
+}
+
+/* Tab Strip Component (Used across Dashboard, AI, Reports, Data Quality) */
+.platform-tab-strip {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  padding: 0 4px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 24px;
+  background: transparent;
+  overflow-x: auto;
+}
+
+.platform-tab-item {
+  background: transparent;
+  border: none;
+  padding: 12px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  position: relative;
+  white-space: nowrap;
+  text-decoration: none;
+  display: inline-block;
+}
+
+.platform-tab-item.is-active,
+.platform-tab-item[aria-selected="true"] {
+  color: var(--navy-900);
+  font-weight: 700;
+}
+
+.platform-tab-item.is-active::after,
+.platform-tab-item[aria-selected="true"]::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--steel-700);
+}
+
+/* Institutional Card Surfaces */
+.platform-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: 24px;
+  margin-bottom: 20px;
+}
+
+.platform-card--flush {
+  padding: 0;
+  overflow: hidden;
+}
+
+.platform-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.platform-card-header h2,
+.platform-card-header h3 {
+  margin: 0;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 1.3rem;
+  color: var(--navy-900);
+}
+
+/* Institutional Buttons */
+.platform-btn-primary {
+  background: linear-gradient(180deg, #123a3e 0%, #0d2e31 100%);
+  color: #ffffff;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 10px 16px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  transition: background 0.15s ease;
+}
+
+.platform-btn-primary:hover {
+  background: linear-gradient(180deg, #18464d 0%, #11373b 100%);
+}
+
+.platform-btn-secondary {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+  transition: background 0.12s ease;
+}
+
+.platform-btn-secondary:hover {
+  background: var(--surface-strong);
+  color: var(--navy-900);
+}
+
+/* Inputs & Selects */
+.platform-input,
+.platform-select {
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.platform-input:focus,
+.platform-select:focus {
+  outline: none;
+  border-color: var(--steel-700);
+}
+
+/* Tables & Status Pills */
+.platform-table-wrapper {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.platform-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 13px;
+}
+
+.platform-table th {
+  background: #faf8f5;
+  border-bottom: 1px solid var(--border);
+  padding: 12px 16px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.platform-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  vertical-align: middle;
+}
+
+.platform-table tbody tr:hover {
+  background: #fbf9f6;
+}
+
+.platform-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.platform-pill::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.platform-pill--success {
+  background: #e6f4ea;
+  color: #137333;
+}
+
+.platform-pill--info {
+  background: #e8f0fe;
+  color: #1a73e8;
+}
+
+.platform-pill--warning {
+  background: #feefe3;
+  color: #c74000;
+}
+
+.platform-pill--danger {
+  background: #fce8e6;
+  color: #c5221f;
+}
