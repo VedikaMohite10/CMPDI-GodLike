@@ -1,49 +1,98 @@
-import React, { createContext, useContext, useState } from 'react'
-import { mockUsers } from '../data/mockUsers'
+/**
+ * AuthContext — JWT-based authentication.
+ *
+ * Token is stored in component state only (never localStorage) to prevent
+ * XSS token theft.  On mount we try to restore from sessionStorage so a
+ * page refresh within the same tab keeps the user logged in.
+ *
+ * Events:
+ *   window cmpdi:unauthorized  fired by apiFetch on 401 — triggers logout
+ */
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
+import { getMe, loginWithCredentials } from '../api/auth'
+import { ApiError } from '../api/client'
 
+const SESSION_KEY = 'cmpdi_token'
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
-  // Default to Analyst user (Rahul Sharma) for seamless direct access
-  const [user, setUser] = useState(mockUsers[0])
+  const [user, setUser]       = useState(null)   // { id, username, role, is_active }
+  const [token, setToken]     = useState(null)   // raw JWT string
+  const [loading, setLoading] = useState(true)   // true while restoring session
+  const [error, setError]     = useState(null)   // last login error message
 
-  const login = (email, password) => {
-    const foundUser = mockUsers.find(
-      (u) => u.email.toLowerCase() === email.trim().toLowerCase() && u.password === password,
-    )
+  // Keep a ref so event listeners always see the latest setter
+  const logoutRef = useRef(null)
 
-    if (foundUser) {
-      setUser(foundUser)
-      return { success: true, user: foundUser }
+  const logout = useCallback(() => {
+    setUser(null)
+    setToken(null)
+    sessionStorage.removeItem(SESSION_KEY)
+  }, [])
+
+  logoutRef.current = logout
+
+  // --- Restore session from sessionStorage on tab reload ---
+  useEffect(() => {
+    const stored = sessionStorage.getItem(SESSION_KEY)
+    if (!stored) {
+      setLoading(false)
+      return
     }
+    // Validate stored token is still accepted by the backend
+    getMe(stored)
+      .then((profile) => {
+        setToken(stored)
+        setUser({ ...profile })
+      })
+      .catch(() => {
+        // Token expired or backend down — clear it
+        sessionStorage.removeItem(SESSION_KEY)
+      })
+      .finally(() => setLoading(false))
+  }, [])
 
-    return { success: false, error: 'Invalid email or password. Please use a mock account.' }
-  }
+  // --- Listen for 401 signals from apiFetch ---
+  useEffect(() => {
+    const handle = () => logoutRef.current?.()
+    window.addEventListener('cmpdi:unauthorized', handle)
+    return () => window.removeEventListener('cmpdi:unauthorized', handle)
+  }, [])
 
-  const loginAsRole = (roleName) => {
-    const foundUser = mockUsers.find((u) => u.role === roleName)
-    if (foundUser) {
-      setUser(foundUser)
-      return { success: true, user: foundUser }
+  // --- Public login action ---
+  const login = useCallback(async (username, password) => {
+    setError(null)
+    try {
+      const resp = await loginWithCredentials(username, password)
+      const { access_token } = resp
+
+      // Fetch full profile (includes id, is_active)
+      const profile = await getMe(access_token)
+      setToken(access_token)
+      setUser({ ...profile })
+      sessionStorage.setItem(SESSION_KEY, access_token)
+      return { success: true, user: profile }
+    } catch (err) {
+      const msg =
+        err instanceof ApiError
+          ? (err.detail ?? err.message)
+          : 'Backend unreachable. Check that the server is running.'
+      setError(msg)
+      return { success: false, error: msg }
     }
-    return { success: false, error: `No mock user found for role ${roleName}` }
-  }
-
-  const logout = () => {
-    // Reset to default mock user
-    setUser(mockUsers[0])
-  }
+  }, [])
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        role: user?.role || 'Analyst',
-        isAuthenticated: true,
+        token,
+        role: user?.role ?? null,
+        isAuthenticated: !!user,
+        loading,
+        error,
         login,
-        loginAsRole,
         logout,
-        setUser,
       }}
     >
       {children}
@@ -52,16 +101,9 @@ export function AuthProvider({ children }) {
 }
 
 export function useAuth() {
-  const context = useContext(AuthContext)
-  if (!context) {
-    return {
-      user: mockUsers[0],
-      role: 'Analyst',
-      isAuthenticated: true,
-      login: () => ({ success: true }),
-      loginAsRole: () => ({ success: true }),
-      logout: () => {},
-    }
+  const ctx = useContext(AuthContext)
+  if (!ctx) {
+    throw new Error('useAuth must be used inside <AuthProvider>')
   }
-  return context
+  return ctx
 }

@@ -17,6 +17,8 @@ from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.services.auth.dependencies import get_current_user
+from app.models.phase5 import User
 from app.models.phase4 import AuditLog
 from app.schemas.reports import (
     ReportGenerateRequest, ReportGenerateResponse,
@@ -41,6 +43,7 @@ _MIME_TYPES = {
 async def generate_report(
     req: ReportGenerateRequest,
     db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
 ):
     """Generate a structured report for the requested scope.
 
@@ -114,6 +117,7 @@ async def list_all_reports(
     page:      int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
 ):
     rows, total = await list_reports(db, page=page, page_size=page_size)
     items = []
@@ -135,6 +139,7 @@ async def list_all_reports(
 async def get_report_content(
     report_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
 ):
     """Return the full structured report content as JSON."""
     row = await get_report(db, report_id)
@@ -154,6 +159,7 @@ async def export_report_file(
     report_id: uuid.UUID,
     format: str = Query(..., pattern="^(pdf|docx|xlsx)$"),
     db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
 ):
     """Download the report as PDF, DOCX, or XLSX."""
     try:

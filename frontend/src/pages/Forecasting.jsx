@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Area,
   AreaChart,
@@ -12,6 +12,8 @@ import {
 import Card from '../components/ui/Card'
 import StatCard from '../components/ui/StatCard'
 import { forecastingMock } from '../data/forecastingMock'
+import { useAuth } from '../context/AuthContext'
+import { listEntities, runForecast, listForecasts } from '../api/intelligence'
 
 const metricOptions = [
   { label: 'Production', value: 'production' },
@@ -19,21 +21,63 @@ const metricOptions = [
 ]
 
 export default function ForecastingPage({ hideHeader = false }) {
-  const subsidiaries = Object.keys(forecastingMock)
-  const [selectedSubsidiary, setSelectedSubsidiary] = useState('CCL')
-  const [selectedMetric, setSelectedMetric] = useState('production')
+  const { token } = useAuth()
 
-  const selectedDataset = forecastingMock[selectedSubsidiary][selectedMetric]
-
-  const chartData = useMemo(
-    () =>
-      selectedDataset.points.map((point) => ({
-        ...point,
-        lower: point.lower ?? point.lowerBound ?? null,
-        upper: point.upper ?? point.upperBound ?? null,
-      })),
-    [selectedDataset],
+  // --- Entity list (subsidiaries from backend, fallback to forecastingMock keys) ---
+  const [entities, setEntities] = useState(
+    Object.keys(forecastingMock).map((k) => ({ id: k, name: k }))
   )
+  const [selectedEntityId, setSelectedEntityId] = useState('CCL')
+  const [selectedMetric, setSelectedMetric] = useState('production')
+  const [forecastRunning, setForecastRunning] = useState(false)
+  const [forecastToast, setForecastToast] = useState('')
+
+  // Load real entity list on mount
+  useEffect(() => {
+    if (!token) return
+    listEntities(token, { entityType: 'subsidiary', pageSize: 50 })
+      .then((r) => {
+        const items = r.items ?? []
+        if (items.length > 0) {
+          setEntities(items.map((e) => ({ id: e.id, name: e.name ?? e.short_name ?? e.id })))
+          setSelectedEntityId(items[0].id)
+        }
+      })
+      .catch(() => { /* keep mock entity list */ })
+  }, [token])
+
+  // Chart data — use mock until a real forecast is run
+  const mockSubsidiary = Object.keys(forecastingMock)[0]
+  const [chartData, setChartData] = useState(
+    forecastingMock[mockSubsidiary]?.[selectedMetric]?.points?.map((p) => ({
+      ...p,
+      lower: p.lower ?? p.lowerBound ?? null,
+      upper: p.upper ?? p.upperBound ?? null,
+    })) ?? []
+  )
+
+  const handleRunForecast = useCallback(async () => {
+    if (!token || !selectedEntityId) return
+    setForecastRunning(true)
+    setForecastToast('Running forecast…')
+    try {
+      const result = await runForecast(token, { entityId: selectedEntityId, metric: selectedMetric, horizonYears: 3 })
+      const points = (result.forecast_data ?? []).map((d) => ({
+        month: d.period_label ?? d.year,
+        actual: d.actual_value ?? null,
+        forecast: d.predicted_value,
+        lower: d.lower_bound ?? null,
+        upper: d.upper_bound ?? null,
+      }))
+      if (points.length > 0) setChartData(points)
+      setForecastToast('Forecast complete!')
+    } catch (err) {
+      setForecastToast(`Forecast failed: ${err.message ?? 'Unknown error'}`)
+    } finally {
+      setForecastRunning(false)
+      window.setTimeout(() => setForecastToast(''), 3000)
+    }
+  }, [token, selectedEntityId, selectedMetric])
 
   const latestPoint = chartData[chartData.length - 1]
   const previousPoint = chartData[chartData.length - 2] || chartData[chartData.length - 1]
@@ -79,17 +123,17 @@ export default function ForecastingPage({ hideHeader = false }) {
         <div className="forecasting-controls">
           <div className="ui-field">
             <label className="ui-field__label" htmlFor="subsidiary-select">
-              Subsidiary
+              Subsidiary / Entity
             </label>
             <select
               id="subsidiary-select"
               className="ui-select"
-              value={selectedSubsidiary}
-              onChange={(event) => setSelectedSubsidiary(event.target.value)}
+              value={selectedEntityId}
+              onChange={(event) => setSelectedEntityId(event.target.value)}
             >
-              {subsidiaries.map((subsidiary) => (
-                <option key={subsidiary} value={subsidiary}>
-                  {subsidiary}
+              {entities.map((entity) => (
+                <option key={entity.id} value={entity.id}>
+                  {entity.name}
                 </option>
               ))}
             </select>
@@ -112,7 +156,28 @@ export default function ForecastingPage({ hideHeader = false }) {
               ))}
             </select>
           </div>
+
+          <div className="ui-field" style={{ display: 'flex', alignItems: 'flex-end' }}>
+            <button
+              type="button"
+              className="ui-button ui-button--primary"
+              onClick={handleRunForecast}
+              disabled={forecastRunning}
+              style={{
+                padding: '9px 20px', borderRadius: 'var(--radius-sm)', border: 'none',
+                background: forecastRunning ? 'rgba(18,58,62,0.4)' : '#123a3e',
+                color: '#fff', fontSize: '13px', fontWeight: 700, cursor: forecastRunning ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {forecastRunning ? 'Running…' : 'Run Forecast'}
+            </button>
+          </div>
         </div>
+        {forecastToast && (
+          <div style={{ marginTop: '10px', fontSize: '12px', color: forecastToast.startsWith('Forecast failed') ? '#dc2626' : '#16a34a', fontWeight: 600 }}>
+            {forecastToast}
+          </div>
+        )}
       </Card>
 
       <div className="forecasting-layout">
@@ -120,7 +185,7 @@ export default function ForecastingPage({ hideHeader = false }) {
           <div className="section-header">
             <div>
               <p className="eyebrow">Forecast trend</p>
-              <h2>{selectedSubsidiary} {selectedMetric === 'production' ? 'production' : 'dispatch'} outlook</h2>
+              <h2>{entities.find(e => e.id === selectedEntityId)?.name ?? selectedEntityId} {selectedMetric === 'production' ? 'production' : 'dispatch'} outlook</h2>
             </div>
           </div>
 
@@ -137,7 +202,7 @@ export default function ForecastingPage({ hideHeader = false }) {
                 <XAxis dataKey="period" tickLine={false} axisLine={false} tick={{ fill: '#53657b', fontSize: 11 }} />
                 <YAxis tickLine={false} axisLine={false} tick={{ fill: '#53657b', fontSize: 11 }} />
                 <Tooltip
-                  formatter={(value) => [`${Number(value).toFixed(1)} ${selectedDataset.unit}`, '']}
+                  formatter={(value) => [`${Number(value).toFixed(1)}`, '']}
                   contentStyle={{
                     borderRadius: 12,
                     border: '1px solid #d7e0ea',
@@ -164,7 +229,7 @@ export default function ForecastingPage({ hideHeader = false }) {
           </div>
 
           <ul className="forecasting-driver-list">
-            {selectedDataset.drivers.map((driver) => (
+            {(chartData?.[0]?.drivers ?? []).map((driver) => (
               <li key={driver}>{driver}</li>
             ))}
           </ul>
@@ -174,7 +239,7 @@ export default function ForecastingPage({ hideHeader = false }) {
       <div className="forecasting-stats">
         <StatCard
           label="Projected next quarter"
-          value={`${lastForecast.toFixed(1)} ${selectedDataset.unit}`}
+          value={`${lastForecast.toFixed(1)} MT`}
           change={`${delta >= 0 ? '+' : ''}${delta.toFixed(1)}% vs last forecast`}
           tone="success"
           trend={delta >= 0 ? 'up' : 'down'}
@@ -190,7 +255,7 @@ export default function ForecastingPage({ hideHeader = false }) {
         />
         <StatCard
           label="Upper bound"
-          value={`${latestPoint?.upper?.toFixed(1) ?? '--'} ${selectedDataset.unit}`}
+          value={`${latestPoint?.upper?.toFixed(1) ?? '--'} MT`}
           change="Optimistic case"
           tone="purple"
           trend="up"
@@ -198,7 +263,7 @@ export default function ForecastingPage({ hideHeader = false }) {
         />
         <StatCard
           label="Lower bound"
-          value={`${latestPoint?.lower?.toFixed(1) ?? '--'} ${selectedDataset.unit}`}
+          value={`${latestPoint?.lower?.toFixed(1) ?? '--'} MT`}
           change="Conservative case"
           tone="warning"
           trend="down"

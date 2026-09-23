@@ -37,6 +37,8 @@ from app.services.ingestion.metadata_extractor import infer_report_date
 from app.services.ingestion.orchestrator import process_document
 from app.services.storage.local_storage import get_storage
 from app.utils.file_utils import safe_filename
+from app.services.auth.dependencies import get_current_user
+from app.models.phase5 import User
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -60,6 +62,7 @@ async def upload_documents(
     files: List[UploadFile] = File(..., description="One or more files to ingest."),
     background_tasks: BackgroundTasks = BackgroundTasks(),
     db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
 ):
     max_bytes = settings.MAX_FILE_SIZE_MB * 1024 * 1024
     storage = get_storage()
@@ -171,6 +174,7 @@ async def list_documents(
     status: Optional[str] = Query(None, description="Filter by processing_status."),
     file_type: Optional[str] = Query(None, description="Filter by file_type."),
     db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
 ):
     query = select(Document)
     count_query = select(func.count(Document.id))
@@ -206,7 +210,7 @@ async def list_documents(
     response_model=DocumentDetail,
     summary="Get document detail with extraction summary",
 )
-async def get_document(document_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+async def get_document(document_id: uuid.UUID, db: AsyncSession = Depends(get_db), _user: User = Depends(get_current_user)):
     doc = await _get_doc_or_404(document_id, db)
 
     # Extraction summary counts
@@ -250,7 +254,7 @@ async def get_document(document_id: uuid.UUID, db: AsyncSession = Depends(get_db
     response_model=DocumentStatus,
     summary="Lightweight status polling endpoint",
 )
-async def get_document_status(document_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+async def get_document_status(document_id: uuid.UUID, db: AsyncSession = Depends(get_db), _user: User = Depends(get_current_user)):
     doc = await _get_doc_or_404(document_id, db)
     return DocumentStatus.model_validate(doc)
 
@@ -267,7 +271,7 @@ async def get_document_status(document_id: uuid.UUID, db: AsyncSession = Depends
         "is retrievable by ID alone, without re-upload."
     ),
 )
-async def download_original(document_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+async def download_original(document_id: uuid.UUID, db: AsyncSession = Depends(get_db), _user: User = Depends(get_current_user)):
     doc = await _get_doc_or_404(document_id, db)
     storage = get_storage()
 

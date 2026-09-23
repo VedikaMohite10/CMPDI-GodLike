@@ -25,7 +25,7 @@ from sqlalchemy.dialects.postgresql import UUID, JSONB
 from alembic import op
 
 revision: str = "0005"
-down_revision: Union[str, None] = "0004"
+down_revision: Union[str, None] = "0004_phase4_schema"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -87,7 +87,6 @@ _REGION_SEED = [
 
 
 def upgrade() -> None:
-    conn = op.get_bind()
 
     # ------------------------------------------------------------------
     # 1. users
@@ -114,8 +113,8 @@ def upgrade() -> None:
         sa.Column("question",             sa.Text(),          nullable=False),
         sa.Column("submitted_by_id",      UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
         sa.Column("intent_plan",          JSONB,              nullable=True),
-        sa.Column("evidence",             JSONB,              nullable=False, server_default="'[]'"),
-        sa.Column("conflicts_surfaced",   JSONB,              nullable=False, server_default="'[]'"),
+        sa.Column("evidence",             JSONB,              nullable=False, server_default=sa.text("'[]'")),
+        sa.Column("conflicts_surfaced",   JSONB,              nullable=False, server_default=sa.text("'[]'")),
         sa.Column("analytics_results",    JSONB,              nullable=True),
         sa.Column("calculation",          sa.Text(),          nullable=True),
         sa.Column("confidence",           sa.Integer(),       nullable=True),
@@ -169,10 +168,10 @@ def upgrade() -> None:
         sa.Column("training_period_start", sa.Date(),          nullable=True),
         sa.Column("training_period_end",   sa.Date(),          nullable=True),
         sa.Column("training_data_points",  sa.Integer(),       nullable=False, server_default="0"),
-        sa.Column("forecast_data",         JSONB,              nullable=False, server_default="'{}'"),
-        sa.Column("data_quality_summary",  JSONB,              nullable=False, server_default="'{}'"),
-        sa.Column("forecast_type",         sa.String(50),      nullable=False, server_default="'Model-based forecast'"),
-        sa.Column("insufficient_data",     sa.Boolean(),       nullable=False, server_default="false"),
+        sa.Column("forecast_data",         JSONB,              nullable=False, server_default=sa.text("'{}'") ),
+        sa.Column("data_quality_summary",  JSONB,              nullable=False, server_default=sa.text("'{}'") ),
+        sa.Column("forecast_type",         sa.String(50),      nullable=False, server_default=sa.text("'Model-based forecast'")),
+        sa.Column("insufficient_data",     sa.Boolean(),       nullable=False, server_default=sa.text("false")),
         sa.Column("insufficient_reason",   sa.Text(),          nullable=True),
         sa.Column("created_at",            sa.DateTime(timezone=True), server_default=sa.text("now()")),
         sa.CheckConstraint(
@@ -188,7 +187,7 @@ def upgrade() -> None:
         "benchmark_runs",
         sa.Column("id",                       UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
         sa.Column("run_at",                   sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.Column("results",                  JSONB,          nullable=False, server_default="'{}'"),
+        sa.Column("results",                  JSONB,          nullable=False, server_default=sa.text("'{}'") ),
         sa.Column("document_count_real",      sa.Integer(),   nullable=False, server_default="0"),
         sa.Column("document_count_synthetic", sa.Integer(),   nullable=False, server_default="0"),
         sa.Column("sample_size",              sa.Integer(),   nullable=False, server_default="0"),
@@ -204,7 +203,7 @@ def upgrade() -> None:
         sa.Column("id",             UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
         sa.Column("document_id",    UUID(as_uuid=True), sa.ForeignKey("documents.id", ondelete="SET NULL"), nullable=True),
         sa.Column("label_set_name", sa.String(200),     nullable=False, unique=True),
-        sa.Column("labels",         JSONB,              nullable=False, server_default="'[]'"),
+        sa.Column("labels",         JSONB,              nullable=False, server_default=sa.text("'[]'")),
         sa.Column("is_synthetic",   sa.Boolean(),       nullable=False),
         sa.Column("synthetic_type", sa.String(50),      nullable=True),
         sa.Column("created_at",     sa.DateTime(timezone=True), server_default=sa.text("now()")),
@@ -224,57 +223,58 @@ def upgrade() -> None:
     # ------------------------------------------------------------------
     # 8. Seed region_mapping from reference table
     # ------------------------------------------------------------------
+    # Use op.execute with sa.text and explicit cast to avoid asyncpg JSON type issues.
+    # Each row is inserted as a plain SQL statement with no JSONB params.
     for (entity_name, entity_type, region_id, region_name, state_name, source_note) in _REGION_SEED:
-        conn.execute(sa.text("""
+        # Escape single quotes in source_note
+        safe_note = source_note.replace("'", "''")
+        safe_name = entity_name.replace("'", "''")
+        safe_rname = region_name.replace("'", "''")
+        safe_sname = state_name.replace("'", "''")
+        op.execute(sa.text(f"""
             INSERT INTO region_mapping (
                 id, canonical_entity_id, region_id, region_name, state_name, source, source_note
             )
             SELECT
                 gen_random_uuid(),
                 ce.id,
-                :region_id,
-                :region_name,
-                :state_name,
+                '{region_id}',
+                '{safe_rname}',
+                '{safe_sname}',
                 'reference_table',
-                :source_note
+                '{safe_note}'
             FROM canonical_entities ce
-            WHERE ce.canonical_name = :entity_name
-              AND ce.entity_type    = :entity_type
+            WHERE ce.canonical_name = '{safe_name}'
+              AND ce.entity_type    = '{entity_type}'
             ON CONFLICT (canonical_entity_id) DO NOTHING
-        """), {
-            "entity_name": entity_name,
-            "entity_type": entity_type,
-            "region_id":   region_id,
-            "region_name": region_name,
-            "state_name":  state_name,
-            "source_note": source_note,
-        })
+        """))
 
     # ------------------------------------------------------------------
-    # 9. Seed benchmark_ground_truth from JSON files
+    # 9. Seed benchmark_ground_truth from JSON files (non-fatal if missing)
     # ------------------------------------------------------------------
     import json
     from pathlib import Path
 
     gt_dir = Path(__file__).parent.parent.parent / "tests" / "benchmark_ground_truth"
 
-    for json_file in gt_dir.rglob("*_labels.json"):
-        try:
-            data = json.loads(json_file.read_text())
-            conn.execute(sa.text("""
-                INSERT INTO benchmark_ground_truth
-                    (id, label_set_name, labels, is_synthetic, synthetic_type)
-                VALUES
-                    (gen_random_uuid(), :name, :labels::jsonb, :synthetic, :stype)
-                ON CONFLICT (label_set_name) DO NOTHING
-            """), {
-                "name":     data.get("label_set_name", json_file.stem),
-                "labels":   json.dumps(data.get("labels", [])),
-                "synthetic": data.get("is_synthetic", False),
-                "stype":    data.get("synthetic_type"),
-            })
-        except Exception as e:
-            print(f"Warning: could not seed {json_file}: {e}")
+    if gt_dir.exists():
+        for json_file in gt_dir.rglob("*_labels.json"):
+            try:
+                data = json.loads(json_file.read_text())
+                labels_json = json.dumps(data.get("labels", []))
+                name = data.get("label_set_name", json_file.stem).replace("'", "''")
+                synthetic = "true" if data.get("is_synthetic", False) else "false"
+                stype_raw = data.get("synthetic_type")
+                stype = f"'{stype_raw}'" if stype_raw else "NULL"
+                op.execute(sa.text(f"""
+                    INSERT INTO benchmark_ground_truth
+                        (id, label_set_name, labels, is_synthetic, synthetic_type)
+                    VALUES
+                        (gen_random_uuid(), '{name}', '{labels_json}'::jsonb, {synthetic}, {stype})
+                    ON CONFLICT (label_set_name) DO NOTHING
+                """))
+            except Exception as e:
+                print(f"Warning: could not seed {json_file}: {e}")
 
 
 def downgrade() -> None:

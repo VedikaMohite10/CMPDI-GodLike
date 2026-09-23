@@ -7,6 +7,8 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.services.auth.dependencies import get_current_user
+from app.models.phase5 import User
 from app.models.phase2 import Conflict, CanonicalEntity, NormalizedFact, ExtractedFact
 from app.models.document import Document
 from app.schemas.common import PaginatedResponse
@@ -66,6 +68,7 @@ async def list_conflicts(
     page:      int                  = Query(1, ge=1),
     page_size: int                  = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
 ):
     filters = []
     if entity_id:
@@ -95,7 +98,7 @@ async def list_conflicts(
 
 
 @router.get("/{conflict_id}")
-async def get_conflict(conflict_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+async def get_conflict(conflict_id: uuid.UUID, db: AsyncSession = Depends(get_db), _user: User = Depends(get_current_user)):
     """Full detail with both facts' complete evidence chains."""
     result = await db.execute(select(Conflict).where(Conflict.id == conflict_id))
     c = result.scalar_one_or_none()

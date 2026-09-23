@@ -7,6 +7,8 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.services.auth.dependencies import get_current_user
+from app.models.phase5 import User
 from app.models.phase2 import CanonicalEntity, EntityAlias, NormalizedFact
 from app.schemas.common import PaginatedResponse
 from app.schemas.entities import CanonicalEntitySummary, CanonicalEntityDetail
@@ -20,6 +22,7 @@ async def list_entities(
     page:        int            = Query(1, ge=1),
     page_size:   int            = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
 ):
     filters = []
     if entity_type:

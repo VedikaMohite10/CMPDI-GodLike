@@ -21,6 +21,7 @@ import logging
 import uuid
 from typing import List
 
+import httpx
 from qdrant_client import AsyncQdrantClient
 from qdrant_client.models import (
     Distance,
@@ -45,7 +46,7 @@ settings = get_settings()
 
 
 def _get_qdrant_client() -> AsyncQdrantClient:
-    return AsyncQdrantClient(host=settings.QDRANT_HOST, port=settings.QDRANT_PORT)
+    return AsyncQdrantClient(host=settings.QDRANT_HOST, port=settings.QDRANT_PORT, check_compatibility=False)
 
 
 async def ensure_collection() -> None:
@@ -152,40 +153,45 @@ async def semantic_search(
     filter_document_id: str | None = None,
     filter_file_type: str | None = None,
 ) -> list[dict]:
-    """Embed *query* and return top-k Qdrant results with full payload.
+    """Embed *query* and search Qdrant via REST API (compatible with 1.9.x server).
 
-    Filters are applied inside Qdrant — no post-filtering in Python.
-    Returns raw list of dicts; the router enriches them with Postgres data.
+    Uses raw httpx call to /points/search which is available in Qdrant ≥1.0.
+    The newer query_points() endpoint requires server ≥1.10 which we cannot
+    guarantee — this approach works on both old and new server versions.
     """
     query_vector = await ollama_client.embed_text(query)
 
+    # Build filter payload
     must_conditions = []
     if filter_document_id:
-        must_conditions.append(
-            FieldCondition(key="document_id", match=MatchValue(value=filter_document_id))
-        )
-    # file_type filter not stored in Qdrant payload by default;
-    # it's in Postgres — handled in router with post-filter if needed.
+        must_conditions.append({
+            "key": "document_id",
+            "match": {"value": filter_document_id}
+        })
 
-    qdrant_filter = Filter(must=must_conditions) if must_conditions else None
+    body: dict = {
+        "vector": query_vector,
+        "limit": top_k,
+        "with_payload": True,
+    }
+    if must_conditions:
+        body["filter"] = {"must": must_conditions}
 
-    client = _get_qdrant_client()
-    try:
-        results = await client.search(
-            collection_name=settings.QDRANT_COLLECTION_NAME,
-            query_vector=query_vector,
-            limit=top_k,
-            query_filter=qdrant_filter,
-            with_payload=True,
-        )
-    finally:
-        await client.close()
+    qdrant_url = f"http://{settings.QDRANT_HOST}:{settings.QDRANT_PORT}"
+    url = f"{qdrant_url}/collections/{settings.QDRANT_COLLECTION_NAME}/points/search"
 
+    async with httpx.AsyncClient(timeout=30.0) as http:
+        resp = await http.post(url, json=body)
+        resp.raise_for_status()
+        data = resp.json()
+
+    results = data.get("result", [])
     return [
         {
-            "score": r.score,
-            "qdrant_point_id": r.id,
-            **r.payload,
+            "score": r["score"],
+            "qdrant_point_id": r["id"],
+            **r.get("payload", {}),
         }
         for r in results
     ]
+

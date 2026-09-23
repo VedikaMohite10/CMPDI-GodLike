@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import IndiaMap from '../components/map/IndiaMap'
 import LayerToggle from '../components/map/LayerToggle'
 import StateDrilldownPanel from '../components/map/StateDrilldownPanel'
@@ -11,6 +11,8 @@ import {
   sortOptions,
   subsidiaryOptions,
 } from '../data/miningMapMock'
+import { useAuth } from '../context/AuthContext'
+import { getMapLayer, getRegionDetail } from '../api/intelligence'
 
 const layers = [
   'Production',
@@ -48,6 +50,7 @@ function DownloadIcon() {
 }
 
 export default function MiningMapPage() {
+  const { token } = useAuth()
   const [activeLayer, setActiveLayer] = useState('Production')
   const [selectedState, setSelectedState] = useState('Odisha')
   const [selectedAsset, setSelectedAsset] = useState(miningAssets[0])
@@ -57,11 +60,34 @@ export default function MiningMapPage() {
   const [selectedAssetType, setSelectedAssetType] = useState('All Asset Types')
   const [sortBy, setSortBy] = useState('name-asc')
   const [toast, setToast] = useState('')
+  const [layerData, setLayerData] = useState(null)       // real layer data from API
+  const [regionData, setRegionData] = useState(null)     // real region drilldown from API
 
-  // State overview fallback data
+  // Load layer data when active layer changes
+  useEffect(() => {
+    if (!token) return
+    const layerKey = activeLayer.toLowerCase().replace(/ /g, '_')
+    getMapLayer(token, layerKey)
+      .then((data) => setLayerData(data))
+      .catch(() => setLayerData(null))   // keep map functioning with mock
+  }, [token, activeLayer])
+
+  // Load region detail when state is selected
+  const handleStateClick = useCallback(async (stateName) => {
+    setSelectedState(stateName)
+    if (!token) return
+    try {
+      const data = await getRegionDetail(token, stateName)
+      setRegionData(data)
+    } catch {
+      setRegionData(null)   // fall back to miningMapMock
+    }
+  }, [token])
+
+  // State overview data: prefer real API data, fall back to mock
   const selectedStateData = useMemo(
-    () => miningMapMock[selectedState] || miningMapMock['Odisha'],
-    [selectedState],
+    () => regionData ?? miningMapMock[selectedState] ?? miningMapMock['Odisha'],
+    [selectedState, regionData],
   )
 
   // Combined Search + Multi-Criteria Filtering

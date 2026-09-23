@@ -16,7 +16,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 from jose import JWTError, jwt
-from passlib.context import CryptContext
+import bcrypt as _bcrypt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -26,19 +26,27 @@ from app.models.phase5 import User
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 
 # ---------------------------------------------------------------------------
-# Password helpers
+# Password helpers — direct bcrypt (works with bcrypt 3.x, 4.x, and 5.x)
 # ---------------------------------------------------------------------------
 
 def hash_password(plain_password: str) -> str:
-    return _pwd_context.hash(plain_password)
+    """Hash a password with bcrypt (compatible with bcrypt 3.x/4.x/5.x)."""
+    pwd_bytes = plain_password.encode("utf-8")
+    salt = _bcrypt.gensalt()
+    return _bcrypt.hashpw(pwd_bytes, salt).decode("utf-8")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return _pwd_context.verify(plain_password, hashed_password)
+    """Verify a password against its bcrypt hash."""
+    try:
+        return _bcrypt.checkpw(
+            plain_password.encode("utf-8"),
+            hashed_password.encode("utf-8"),
+        )
+    except Exception:
+        return False
 
 
 # ---------------------------------------------------------------------------

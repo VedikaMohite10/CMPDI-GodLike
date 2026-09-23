@@ -1,9 +1,15 @@
-import React, { useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import DocumentTable from '../components/documents/DocumentTable'
 import UploadArea from '../components/documents/UploadArea'
-import { documentTypes, documentsMock, statuses, subsidiaries } from '../data/documentsMock'
+import { useAuth } from '../context/AuthContext'
+import { downloadOriginal, listDocuments } from '../api/documents'
 import '../styles/DocumentsPage.css'
+
+// Static filter options (backend doesn't expose a /meta endpoint yet)
+const documentTypes = ['All Document Types', 'Annual Report', 'Production Report', 'Survey Report', 'Environmental Report', 'Safety Report', 'Geological Report']
+const subsidiaries  = ['All Subsidiaries', 'CCL', 'WCL', 'SECL', 'ECL', 'BCCL', 'MCL', 'NCL', 'CMPDI HQ', 'CIL Central']
+const statuses      = ['All Status', 'pending', 'processing', 'done', 'failed']
 
 function SearchIcon() {
   return (
@@ -35,6 +41,7 @@ function CloseIcon() {
 const ITEMS_PER_PAGE = 8
 
 export default function DocumentsPage() {
+  const { token } = useAuth()
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('All Document Types')
   const [subsidiaryFilter, setSubsidiaryFilter] = useState('All Subsidiaries')
@@ -42,11 +49,52 @@ export default function DocumentsPage() {
   const [activeTab, setActiveTab] = useState('All')
   const [page, setPage] = useState(1)
   const [toast, setToast] = useState('')
-  const [selectedDoc, setSelectedDoc] = useState(documentsMock[0])
-  const [isPreviewOpen, setIsPreviewOpen] = useState(true)
+  const [selectedDoc, setSelectedDoc] = useState(null)
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false)
 
+  // Real data state
+  const [documents, setDocuments] = useState([])
+  const [totalCount, setTotalCount] = useState(0)
+  const [apiLoading, setApiLoading] = useState(true)
+  const [apiError, setApiError] = useState(null)
+
+  // Fetch document list from backend
+  const fetchDocuments = useCallback(async () => {
+    setApiLoading(true)
+    setApiError(null)
+    try {
+      const statusParam = statusFilter !== 'All Status' ? statusFilter : undefined
+      const result = await listDocuments(token, { page, pageSize: ITEMS_PER_PAGE, status: statusParam })
+      // Normalise backend field names to match existing UI expectations
+      const normalised = (result.items ?? []).map((d) => ({
+        id:               d.id,
+        title:            d.original_filename ?? d.filename,
+        type:             d.file_type ?? 'Unknown',
+        subsidiary:       d.subsidiary ?? '—',
+        date:             d.created_at ?? d.ingestion_started_at,
+        status:           d.processing_status,
+        pages:            d.page_count ?? null,
+        ocrStatus:        d.ocr_required ? 'Required' : 'Not Required',
+        validationStatus: d.processing_status === 'done' ? 'Passed' : 'Pending',
+      }))
+      setDocuments(normalised)
+      setTotalCount(result.total ?? normalised.length)
+      if (normalised.length > 0 && !selectedDoc) {
+        setSelectedDoc(normalised[0])
+        setIsPreviewOpen(true)
+      }
+    } catch (err) {
+      setApiError(err.message ?? 'Failed to load documents')
+    } finally {
+      setApiLoading(false)
+    }
+  }, [token, page, statusFilter, selectedDoc])
+
+  useEffect(() => { fetchDocuments() }, [fetchDocuments])
+
+  // Client-side text search on the already-fetched page
   const filtered = useMemo(() => {
-    return documentsMock.filter((doc) => {
+    return documents.filter((doc) => {
       const matchesSearch =
         !search ||
         [doc.title, doc.id, doc.subsidiary, doc.type]
@@ -55,26 +103,16 @@ export default function DocumentsPage() {
           .includes(search.toLowerCase())
 
       const matchesType = typeFilter === 'All Document Types' || doc.type === typeFilter
-      const matchesSub = subsidiaryFilter === 'All Subsidiaries' || doc.subsidiary === subsidiaryFilter
+      const matchesSub  = subsidiaryFilter === 'All Subsidiaries' || doc.subsidiary === subsidiaryFilter
 
-      let matchesStatus = true
-      if (statusFilter !== 'All Status') {
-        matchesStatus = doc.status === statusFilter
-      }
-
-      let matchesTab = true
-      if (activeTab === 'Processed') matchesTab = doc.status === 'Processed'
-      if (activeTab === 'Pending') matchesTab = doc.status === 'Pending' || doc.status === 'Under Review'
-      if (activeTab === 'Failed') matchesTab = doc.status === 'Failed'
-      if (activeTab === 'Verified') matchesTab = doc.status === 'Verified'
-
-      return matchesSearch && matchesType && matchesSub && matchesStatus && matchesTab
+      return matchesSearch && matchesType && matchesSub
     })
-  }, [search, typeFilter, subsidiaryFilter, statusFilter, activeTab])
+  }, [documents, search, typeFilter, subsidiaryFilter])
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE))
-  const currentPage = Math.min(page, totalPages)
-  const paginated = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
+  // Pagination is server-driven; filtered is just search-filtered current page results
+  const totalPages   = Math.max(1, Math.ceil(totalCount / ITEMS_PER_PAGE))
+  const currentPage  = Math.min(page, totalPages)
+  const paginated    = filtered   // already one page from backend
 
   const handleResetFilters = () => {
     setSearch('')
@@ -90,9 +128,19 @@ export default function DocumentsPage() {
     setIsPreviewOpen(true)
   }
 
-  const handleDownloadDoc = (doc) => {
-    setToast(`Downloading ${doc.title}...`)
-    window.setTimeout(() => setToast(''), 2200)
+  const handleDownloadDoc = async (doc) => {
+    setToast(`Downloading ${doc.title}…`)
+    try {
+      const blobUrl = await downloadOriginal(token, doc.id)
+      const a = Object.assign(document.createElement('a'), { href: blobUrl, download: doc.title })
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(blobUrl)
+    } catch {
+      setToast(`Download failed for ${doc.title}`)
+    }
+    window.setTimeout(() => setToast(''), 2500)
   }
 
   return (
@@ -155,7 +203,7 @@ export default function DocumentsPage() {
 
         {/* Operational Control Bar */}
         <section className="doc-control-bar">
-          <UploadArea compact />
+          <UploadArea compact onUploadComplete={fetchDocuments} />
 
           <div className="doc-filters-row">
             <div className="doc-search-box">
@@ -263,7 +311,17 @@ export default function DocumentsPage() {
             </div>
 
             {/* Document Table */}
-            {filtered.length === 0 ? (
+            {apiError ? (
+              <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                <p style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: '#dc2626' }}>Failed to load documents</p>
+                <p style={{ margin: '6px 0 0', fontSize: '13px', color: 'var(--text-muted)' }}>{apiError}</p>
+                <button type="button" onClick={fetchDocuments} style={{ marginTop: '12px', padding: '8px 16px', borderRadius: '6px', border: '1px solid currentColor', background: 'transparent', cursor: 'pointer', fontSize: '13px' }}>Retry</button>
+              </div>
+            ) : apiLoading ? (
+              <div style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                <p style={{ margin: 0, fontSize: '13px' }}>Loading documents…</p>
+              </div>
+            ) : filtered.length === 0 ? (
               <div style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--text-secondary)' }}>
                 <p style={{ margin: 0, fontSize: '15px', fontWeight: 600 }}>No documents match the active search or filters.</p>
                 <p style={{ margin: '6px 0 0', fontSize: '13px', color: 'var(--text-muted)' }}>Try resetting the filters or modifying your search query.</p>

@@ -11,6 +11,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.services.auth.dependencies import get_current_user
+from app.models.phase5 import User
 from app.models.phase2 import CanonicalEntity
 from app.schemas.query import (
     AnalyticsCompareRequest,
@@ -52,6 +54,7 @@ router = APIRouter(prefix="/analytics", tags=["Analytics"])
 async def compare(
     request: AnalyticsCompareRequest,
     db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
 ):
     try:
         result = await analytics_service.get_comparison(
@@ -103,6 +106,7 @@ async def compare(
 async def trend(
     request: AnalyticsTrendRequest,
     db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
 ):
     try:
         result = await analytics_service.get_trend(
@@ -153,6 +157,7 @@ async def trend(
 async def why_did_this_change(
     request: WhyChangeRequest,
     db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
 ):
     # Resolve entity name for the search query
     entity_res = await db.execute(

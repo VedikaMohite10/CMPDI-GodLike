@@ -11,6 +11,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.services.auth.dependencies import get_current_user
+from app.models.phase5 import User
 from app.models.document import Document
 from app.models.extraction import ExtractedImage, ExtractedTable, ExtractedTextBlock
 from app.models.page import Page
@@ -37,6 +39,7 @@ async def get_page_content(
     document_id: uuid.UUID,
     page_number: int,
     db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
 ):
     # 1. Verify document exists
     doc_result = await db.execute(

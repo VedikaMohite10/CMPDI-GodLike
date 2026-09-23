@@ -1,5 +1,8 @@
 import { useRef, useMemo, useState } from 'react'
 import { aiQueryExamples } from '../data/aiQueryMock'
+import { useAuth } from '../context/AuthContext'
+import { submitQuery } from '../api/query'
+import ExplainableAIPanel from '../components/ai-query/ExplainableAIPanel'
 
 const seedHistory = [
   {
@@ -128,6 +131,7 @@ function normalizeQuestion(value) {
 }
 
 export default function AIQueryPage({ hideHeader = false }) {
+  const { token } = useAuth()
   const examples = useMemo(() => aiQueryExamples, [])
   const [chatHistory, setChatHistory] = useState(seedHistory)
   const [selectedHistoryId, setSelectedHistoryId] = useState('today-1')
@@ -136,6 +140,7 @@ export default function AIQueryPage({ hideHeader = false }) {
   const [draftQuestion, setDraftQuestion] = useState('')
   const [attachedFile, setAttachedFile] = useState(null)
   const [toast, setToast] = useState('')
+  const [queryLoading, setQueryLoading] = useState(false)   // true while LLM is running
   const fileInputRef = useRef(null)
 
   const activeItem = useMemo(() => {
@@ -163,38 +168,58 @@ export default function AIQueryPage({ hideHeader = false }) {
     return groups
   }, [filteredHistory])
 
-  const loadAnswerForQuestion = (questionText) => {
+  const loadAnswerForQuestion = async (questionText) => {
     const trimmed = questionText.trim()
     if (!trimmed && !attachedFile) return
 
     const displayTitle = trimmed || (attachedFile ? `Analysis of ${attachedFile.name}` : 'Document Query')
-    const normalizedInput = normalizeQuestion(displayTitle)
-    const match = examples.find(
-      (example) =>
-        normalizeQuestion(example.question) === normalizedInput ||
-        normalizedInput.includes(normalizeQuestion(example.question)) ||
-        normalizeQuestion(example.question).includes(normalizedInput),
-    )
 
-    const selected = match || examples[0]
-    const newEntry = {
-      id: `today-${Date.now()}`,
+    // Optimistic loading placeholder — gives immediate feedback during LLM call (5-30s)
+    const tempId = `today-${Date.now()}`
+    const loadingEntry = {
+      id: tempId,
       title: displayTitle,
       time: 'Just now',
       question: displayTitle,
       responseTitle: `Analysis: ${displayTitle}`,
-      summary: attachedFile
-        ? `Processed attached file (${attachedFile.name}). ${selected.answer?.executiveSummary || 'Relevant operational compliance and mining metrics extracted.'}`
-        : (selected.answer?.executiveSummary || 'Based on CMPDI and CIL records, relevant operational and compliance data has been compiled for review.'),
-      quote: '“Verified Operational Intelligence across CIL Units”',
-      answer: selected.answer,
+      summary: 'AI Copilot is processing… (this may take up to 30s)',
+      quote: '',
+      answer: null,
+      isLoading: true,
     }
-
     setIsNewChat(false)
-    setSelectedHistoryId(newEntry.id)
-    setChatHistory((current) => [newEntry, ...current])
+    setSelectedHistoryId(tempId)
+    setChatHistory((current) => [loadingEntry, ...current])
     setDraftQuestion('')
     setAttachedFile(null)
+    setQueryLoading(true)
+
+    try {
+      const result = await submitQuery(token, displayTitle)
+      const newEntry = {
+        id: result.query_id ?? tempId,
+        title: displayTitle,
+        time: 'Just now',
+        question: displayTitle,
+        responseTitle: `Analysis: ${displayTitle}`,
+        summary: result.answer ?? 'Query completed.',
+        quote: result.reasoning_type ? `Reasoning: ${result.reasoning_type}` : '"Verified Operational Intelligence across CIL Units"',
+        answer: result,
+        isLoading: false,
+      }
+      setChatHistory((current) => current.map((item) => item.id === tempId ? newEntry : item))
+      setSelectedHistoryId(newEntry.id)
+    } catch (err) {
+      setChatHistory((current) => current.map((item) =>
+        item.id === tempId
+          ? { ...item, summary: `Query failed: ${err.message ?? 'Check backend logs.'}`, isLoading: false }
+          : item,
+      ))
+      setToast('Query failed — check that the backend and LLM are running')
+      window.setTimeout(() => setToast(''), 4000)
+    } finally {
+      setQueryLoading(false)
+    }
   }
 
   const handleSelectConversation = (item) => {
@@ -676,6 +701,11 @@ export default function AIQueryPage({ hideHeader = false }) {
                     {activeItem?.summary ||
                       'Based on the available CMPDI and CIL documents, MCL has maintained a largely compliant environmental status, with most clearances up to date. However, a few observations have been noted regarding pending renewals for certain mining projects and compliance with recent MoEF&CC guidelines.'}
                   </p>
+
+                  {/* ExplainableAI Panel — only for real backend responses (have query_id) */}
+                  {activeItem?.answer?.query_id && (
+                    <ExplainableAIPanel answer={activeItem.answer} />
+                  )}
                 </div>
 
                 {/* Quote Callout Box */}

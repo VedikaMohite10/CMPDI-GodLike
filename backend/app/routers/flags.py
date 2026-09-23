@@ -7,6 +7,8 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.services.auth.dependencies import get_current_user
+from app.models.phase5 import User
 from app.models.phase2 import ValidationFlag, NormalizedFact, ExtractedFact, CanonicalEntity
 from app.models.page import Page
 from app.models.document import Document
@@ -24,6 +26,7 @@ async def list_flags(
     page:        int                  = Query(1, ge=1),
     page_size:   int                  = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
 ):
     filters = []
     if flag_type:

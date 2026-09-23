@@ -187,10 +187,11 @@ async def _load_series(
     Groups by period_start year, averages when multiple facts exist per year,
     and returns sorted ascending by year.
     """
+    from sqlalchemy import text
     result = await db.execute(
         select(
-            func.date_part("year", NormalizedFact.period_start).label("year"),
-            func.avg(NormalizedFact.normalized_value).label("avg_value"),
+            NormalizedFact.period_start,
+            NormalizedFact.normalized_value,
             NormalizedFact.normalized_unit,
         )
         .where(and_(
@@ -200,16 +201,32 @@ async def _load_series(
             NormalizedFact.period_start.isnot(None),
             NormalizedFact.fact_processing_status != "rejected",
         ))
-        .group_by(
-            func.date_part("year", NormalizedFact.period_start),
-            NormalizedFact.normalized_unit,
-        )
-        .order_by(func.date_part("year", NormalizedFact.period_start))
+        .order_by(NormalizedFact.period_start)
     )
 
-    rows = result.all()
-    if not rows:
+    raw_rows = result.all()
+    if not raw_rows:
         return []
+
+    # Group by year in Python (avoids PostgreSQL GROUP BY / date_part ambiguity)
+    from collections import defaultdict
+    year_values: dict = defaultdict(list)
+    year_units: dict = defaultdict(list)
+    for row in raw_rows:
+        yr = row.period_start.year
+        year_values[yr].append(float(row.normalized_value))
+        if row.normalized_unit:
+            year_units[yr].append(row.normalized_unit)
+
+    # Build synthetic rows as simple namespaces so the rest of the code still works
+    import types
+    rows = []
+    for yr in sorted(year_values.keys()):
+        vals = year_values[yr]
+        units = year_units[yr]
+        unit = max(set(units), key=units.count) if units else None
+        row = types.SimpleNamespace(year=float(yr), avg_value=sum(vals)/len(vals), normalized_unit=unit)
+        rows.append(row)
 
     # Take the most common unit
     unit_counts: Dict[str, int] = {}

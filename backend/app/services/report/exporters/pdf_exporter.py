@@ -204,6 +204,8 @@ async def export_pdf(content: ReportContent, output_path: Path) -> None:
 
 
 def _add_narrative(story, heading, text, h2_style, normal_style):
+    from reportlab.platypus import Paragraph, Spacer
+    from reportlab.lib.units import cm
     story.append(Paragraph(heading, h2_style))
     if text:
         for para in text.split("\n\n"):
@@ -212,6 +214,4 @@ def _add_narrative(story, heading, text, h2_style, normal_style):
                 story.append(Paragraph(para, normal_style))
     else:
         story.append(Paragraph("(Narrative unavailable — see structured data sections.)", normal_style))
-    from reportlab.platypus import Spacer
-    from reportlab.lib.units import cm
     story.append(Spacer(1, 0.4*cm))

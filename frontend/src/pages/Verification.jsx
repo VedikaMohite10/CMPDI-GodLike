@@ -1,35 +1,105 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Card from '../components/ui/Card'
 import ActionButtons from '../components/verification/ActionButtons'
 import ConflictComparisonView from '../components/verification/ConflictComparisonView'
 import VerificationQueueTable from '../components/verification/VerificationQueueTable'
 import EvidenceExplorer from '../components/evidence/EvidenceExplorer'
 import { EmptyState } from '../components/ui/StatePanel'
-import { verificationQueueMock } from '../data/verificationMock'
+import { useAuth } from '../context/AuthContext'
+import { listFlags, acceptFlag, correctFlag, rejectFlag, listAuditLog, getConflictById } from '../api/review'
 
-const formatTimestamp = (date = new Date()) =>
-  date.toLocaleString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+const formatTimestamp = (iso) => {
+  const d = iso ? new Date(iso) : new Date()
+  return d.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
+/** Map backend flag record to the shape VerificationQueueTable expects */
+function normaliseFlag(f) {
+  return {
+    id:         f.id,
+    itemType:   f.flag_type ?? 'Flag',
+    flagType:   f.severity ?? f.flag_type ?? 'Info',
+    status:     f.status ?? 'open',
+    metric:     f.metric ?? f.fact_type ?? '—',
+    document:   f.document_id ?? '—',
+    rawValue:   f.raw_value,
+    normalizedValue: f.normalized_value,
+    normalizedUnit:  f.normalized_unit,
+    description: f.description ?? '',
+    evidence:   null,
+    _raw: f,
+  }
+}
+
+/** Map backend audit-log entry to the shape the recent-actions panel expects */
+function normaliseAuditEntry(entry) {
+  return {
+    id:        entry.id,
+    itemId:    entry.target_id ?? '—',
+    action:    entry.action_type ?? 'Action',
+    // Backend uses `note` (not `description`) and `timestamp` (not `created_at`)
+    summary:   entry.note ?? `${entry.action_type ?? 'Action'} by ${entry.reviewer ?? 'reviewer'}`,
+    timestamp: formatTimestamp(entry.timestamp ?? entry.created_at),
+  }
+}
 
 export default function VerificationPage({ hideHeader = false }) {
-  const [items, setItems] = useState(verificationQueueMock)
-  const [selectedId, setSelectedId] = useState(verificationQueueMock[0].id)
-  const [filter, setFilter] = useState('All')
+  const { token, user } = useAuth()
+
+  const [items, setItems]       = useState([])
+  const [selectedId, setSelectedId] = useState(null)
+  const [filter, setFilter]     = useState('All')
+  const [loading, setLoading]   = useState(true)
+  const [apiError, setApiError] = useState(null)
   const [toastMessage, setToastMessage] = useState('')
-  const [recentActions, setRecentActions] = useState([
-    {
-      id: 1,
-      itemId: verificationQueueMock[0].id,
-      action: 'Accepted',
-      summary: 'Production figure accepted after field-level comparison.',
-      timestamp: formatTimestamp(),
-    },
-  ])
+  const [recentActions, setRecentActions] = useState([])
+  const [actionLoading, setActionLoading] = useState(false)
+  const [conflictDetail, setConflictDetail] = useState(null)
+
+  const showToast = (msg) => { setToastMessage(msg); window.setTimeout(() => setToastMessage(''), 3000) }
+
+  // --- Load flags ---
+  const loadFlags = useCallback(async () => {
+    setLoading(true)
+    setApiError(null)
+    try {
+      const result = await listFlags(token, { pageSize: 50 })
+      const normalised = (result.items ?? []).map(normaliseFlag)
+      setItems(normalised)
+      if (normalised.length > 0 && !selectedId) setSelectedId(normalised[0].id)
+    } catch (err) {
+      setApiError(err.message ?? 'Failed to load verification queue')
+    } finally {
+      setLoading(false)
+    }
+  }, [token, selectedId])
+
+  // --- Load audit log ---
+  const loadAuditLog = useCallback(async () => {
+    try {
+      const result = await listAuditLog(token, { pageSize: 10 })
+      setRecentActions((result.items ?? []).map(normaliseAuditEntry))
+    } catch {
+      // non-fatal
+    }
+  }, [token])
+
+  useEffect(() => { loadFlags() }, [loadFlags])
+  useEffect(() => { loadAuditLog() }, [loadAuditLog])
+
+  // Load full conflict detail (dual-evidence) when a conflict-type item is selected
+  useEffect(() => {
+    if (!selectedItem) { setConflictDetail(null); return }
+    const raw = selectedItem._raw ?? {}
+    // Conflicts are stored in /conflicts/{id}, flags in /review/flags/{id}
+    // The review queue returns flags; conflicts linked to a flag live in review/conflicts
+    // We try to load conflict detail when the flag has a conflict hint (value_a/value_b exist)
+    const isConflictLike = raw.value_a != null || raw.value_b != null
+    if (!isConflictLike || !token) return
+    getConflictById(token, selectedItem.id)
+      .then((detail) => setConflictDetail(detail))
+      .catch(() => setConflictDetail(null))
+  }, [selectedItem, token])
 
   const flagTypes = useMemo(
     () => ['All', ...new Set(items.map((item) => item.flagType))],
@@ -46,37 +116,36 @@ export default function VerificationPage({ hideHeader = false }) {
     items.find((item) => item.id === selectedId) ||
     items[0]
 
-  const handleAction = (action) => {
-    if (!selectedItem) {
-      return
+  const handleAction = async (action) => {
+    if (!selectedItem) return
+    const reviewer = user?.username ?? 'reviewer'
+    setActionLoading(true)
+    try {
+      if (action === 'Accept') {
+        await acceptFlag(token, selectedItem.id, reviewer, '')
+        showToast('Flag accepted — queue updated')
+      } else if (action === 'Reject') {
+        await rejectFlag(token, selectedItem.id, reviewer, '')
+        showToast('Flag rejected — queue updated')
+      } else if (action === 'Correct') {
+        // Simple prompt for corrected value; production UI would use a modal
+        const correctedValue = window.prompt('Enter corrected value:', selectedItem.normalizedValue ?? '')
+        if (correctedValue === null) { setActionLoading(false); return }
+        await correctFlag(token, selectedItem.id, {
+          reviewer,
+          correctedValue: Number(correctedValue) || correctedValue,
+          correctedUnit: selectedItem.normalizedUnit,
+          note: 'Corrected via review console',
+        })
+        showToast('Value corrected — queue updated')
+      }
+      // Refresh both flags and audit log after action
+      await Promise.all([loadFlags(), loadAuditLog()])
+    } catch (err) {
+      showToast(`Action failed: ${err.message ?? 'Unknown error'}`)
+    } finally {
+      setActionLoading(false)
     }
-
-    const resolvedStatus =
-      action === 'Accept'
-        ? 'Accepted'
-        : action === 'Correct'
-          ? 'Corrected'
-          : action === 'Reject'
-            ? 'Rejected'
-            : 'Resolved'
-
-    setItems((current) =>
-      current.map((item) => (item.id === selectedItem.id ? { ...item, status: resolvedStatus } : item)),
-    )
-
-    setRecentActions((current) => [
-      {
-        id: Date.now(),
-        itemId: selectedItem.id,
-        action: resolvedStatus,
-        summary: `${selectedItem.itemType} marked as ${resolvedStatus.toLowerCase()} by reviewer.`,
-        timestamp: formatTimestamp(),
-      },
-      ...current,
-    ].slice(0, 8))
-
-    setToastMessage(`Conflict resolved (${resolvedStatus}) — System Data Quality updated`)
-    window.setTimeout(() => setToastMessage(''), 3000)
   }
 
   return (
@@ -109,14 +178,23 @@ export default function VerificationPage({ hideHeader = false }) {
               </div>
               <select className="documents-filter" value={filter} onChange={(event) => setFilter(event.target.value)}>
                 {flagTypes.map((type) => (
-                  <option key={type} value={type}>
-                    {type}
-                  </option>
+                  <option key={type} value={type}>{type}</option>
                 ))}
               </select>
             </div>
 
-            {filteredItems.length === 0 ? (
+            {apiError ? (
+              <div style={{ padding: '40px 20px', textAlign: 'center' }}>
+                <p style={{ color: '#dc2626', fontWeight: 600, fontSize: '14px' }}>{apiError}</p>
+                <button type="button" onClick={loadFlags} style={{ marginTop: '10px', padding: '7px 14px', borderRadius: '6px', border: '1px solid currentColor', background: 'transparent', cursor: 'pointer', fontSize: '12px' }}>
+                  Retry
+                </button>
+              </div>
+            ) : loading ? (
+              <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '13px' }}>
+                Loading verification queue…
+              </div>
+            ) : filteredItems.length === 0 ? (
               <EmptyState
                 title="No verification items match the current filter"
                 description="Try choosing another flag type to continue the review queue."
@@ -127,11 +205,19 @@ export default function VerificationPage({ hideHeader = false }) {
           </Card>
 
           <Card className="verification-card">
-            <ConflictComparisonView item={selectedItem} />
+            <ConflictComparisonView item={selectedItem} conflictDetail={conflictDetail} />
           </Card>
 
           <Card className="verification-card">
-            <EvidenceExplorer evidence={selectedItem?.evidence} title={`${selectedItem?.itemType || 'Conflict'} evidence`} />
+            <EvidenceExplorer
+            evidence={selectedItem?.evidence ?? (selectedItem?._raw?.normalized_value != null ? [{
+              label: selectedItem._raw.metric ?? 'Value',
+              value: `${selectedItem._raw.normalized_value} ${selectedItem._raw.normalized_unit ?? ''}`.trim(),
+              confidence: null,
+              tone: 'green',
+            }] : null)}
+            title={`${selectedItem?.itemType || 'Flag'} evidence`}
+          />
           </Card>
         </div>
 
@@ -143,7 +229,7 @@ export default function VerificationPage({ hideHeader = false }) {
                 <h2>Actions</h2>
               </div>
             </div>
-            <ActionButtons onAction={handleAction} />
+            <ActionButtons onAction={handleAction} disabled={actionLoading || !selectedItem} />
           </Card>
 
           <Card className="verification-card">
@@ -154,20 +240,27 @@ export default function VerificationPage({ hideHeader = false }) {
               </div>
             </div>
 
-            <ul className="verification-log">
-              {recentActions.map((entry) => (
-                <li key={entry.id} className="verification-log__item">
-                  <div className="verification-log__topline">
-                    <strong>{entry.action}</strong>
-                    <span>{entry.timestamp}</span>
-                  </div>
-                  <p>{entry.summary}</p>
-                </li>
-              ))}
-            </ul>
+            {recentActions.length === 0 ? (
+              <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
+                No recent actions yet.
+              </div>
+            ) : (
+              <ul className="verification-log">
+                {recentActions.map((entry) => (
+                  <li key={entry.id} className="verification-log__item">
+                    <div className="verification-log__topline">
+                      <strong>{entry.action}</strong>
+                      <span>{entry.timestamp}</span>
+                    </div>
+                    <p>{entry.summary}</p>
+                  </li>
+                ))}
+              </ul>
+            )}
           </Card>
         </div>
       </div>
     </div>
   )
 }
+

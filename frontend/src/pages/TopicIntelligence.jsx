@@ -1,22 +1,48 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Card from '../components/ui/Card'
 import WordCloud from '../components/topics/WordCloud'
 import TopicClusterCard from '../components/topics/TopicClusterCard'
 import TopicTrendChart from '../components/topics/TopicTrendChart'
 import { EmptyState } from '../components/ui/StatePanel'
 import { topicsMock } from '../data/topicsMock'
+import { useAuth } from '../context/AuthContext'
+import { listTopics, getTopicTrends } from '../api/intelligence'
 
 export default function TopicIntelligencePage({ hideHeader = false }) {
+  const { token } = useAuth()
   const [selectedTopic, setSelectedTopic] = useState('Production')
+  const [topicsData, setTopicsData] = useState(topicsMock)
+
+  useEffect(() => {
+    if (!token) return
+    Promise.allSettled([listTopics(token), getTopicTrends(token)]).then(([topicsRes, trendsRes]) => {
+      const distribution = topicsRes.status === 'fulfilled' && topicsRes.value?.items
+        ? topicsRes.value.items.map((t) => ({ label: t.name ?? t.label, weight: t.document_count ?? t.weight ?? 1 }))
+        : null
+      const trend = trendsRes.status === 'fulfilled' && trendsRes.value?.series
+        ? trendsRes.value.series
+        : null
+      const clusters = topicsRes.status === 'fulfilled' && topicsRes.value?.clusters
+        ? topicsRes.value.clusters
+        : null
+      if (distribution || trend || clusters) {
+        setTopicsData({
+          distribution: distribution ?? topicsMock.distribution,
+          trend:        trend        ?? topicsMock.trend,
+          clusters:     clusters     ?? topicsMock.clusters,
+        })
+      }
+    })
+  }, [token])
 
   const filteredClusters = useMemo(
     () =>
-      topicsMock.clusters.filter((cluster) => {
+      (topicsData.clusters ?? []).filter((cluster) => {
         const topicKey = selectedTopic.toLowerCase()
         const clusterText = `${cluster.title} ${cluster.summary} ${cluster.category || ''}`.toLowerCase()
         return clusterText.includes(topicKey)
       }),
-    [selectedTopic],
+    [selectedTopic, topicsData.clusters],
   )
 
   return (
@@ -38,7 +64,7 @@ export default function TopicIntelligencePage({ hideHeader = false }) {
               <h2>Current topic emphasis</h2>
             </div>
           </div>
-          <WordCloud items={topicsMock.distribution} />
+          <WordCloud items={topicsData.distribution} />
         </Card>
 
         <Card className="topic-card">
@@ -48,12 +74,12 @@ export default function TopicIntelligencePage({ hideHeader = false }) {
               <h2>Topic evolution</h2>
             </div>
           </div>
-          <TopicTrendChart data={topicsMock.trend} />
+          <TopicTrendChart data={topicsData.trend} />
         </Card>
       </div>
 
       <div className="topic-filter-row">
-        {topicsMock.distribution.map((item) => (
+        {(topicsData.distribution ?? []).map((item) => (
           <button
             key={item.label}
             type="button"

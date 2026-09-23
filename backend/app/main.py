@@ -8,10 +8,11 @@ Responsibilities:
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
+from app.services.auth.dependencies import get_current_user
 from app.routers import documents, pages, search
 from app.routers import facts, entities, conflicts, flags, duplicates
 # Phase 3 routers
@@ -136,29 +137,34 @@ def create_app() -> FastAPI:
     # -----------------------------------------------------------------
     # Routers
     # -----------------------------------------------------------------
-    app.include_router(documents.router, prefix="/documents", tags=["Documents"])
-    app.include_router(pages.router, prefix="/documents", tags=["Pages"])
-    app.include_router(search.router, tags=["Search"])
-    # Phase 2 routers
-    app.include_router(facts.router)
-    app.include_router(entities.router)
-    app.include_router(conflicts.router)
-    app.include_router(flags.router)
-    app.include_router(duplicates.router)
-    # Phase 3 — Analytics Engine + AI Query Copilot
-    app.include_router(query_router.router)
-    app.include_router(analytics_router.router)
-    # Phase 4 — Report Generation, Topics, Review Console, Dashboard
-    app.include_router(reports_router.router)
-    app.include_router(topics_router.router)
-    app.include_router(review_router.router)
-    app.include_router(dashboard_router.router)
-    # Phase 5 — Security/Auth, Parliamentary Copilot, Map, Forecast, Benchmark
+    # Auth router — login and /me are self-guarded; user creation is admin-guarded
     app.include_router(auth_router.router)
-    app.include_router(parliamentary_router.router)
-    app.include_router(map_router.router)
-    app.include_router(forecast_router.router)
-    app.include_router(benchmark_router.router)
+
+    # Global auth dependency for all other routers (Phase 6 hardening)
+    _auth = [Depends(get_current_user)]
+
+    app.include_router(documents.router, prefix="/documents", tags=["Documents"], dependencies=_auth)
+    app.include_router(pages.router, prefix="/documents", tags=["Pages"], dependencies=_auth)
+    app.include_router(search.router, tags=["Search"], dependencies=_auth)
+    # Phase 2 routers
+    app.include_router(facts.router, dependencies=_auth)
+    app.include_router(entities.router, dependencies=_auth)
+    app.include_router(conflicts.router, dependencies=_auth)
+    app.include_router(flags.router, dependencies=_auth)
+    app.include_router(duplicates.router, dependencies=_auth)
+    # Phase 3 — Analytics Engine + AI Query Copilot
+    app.include_router(query_router.router, dependencies=_auth)
+    app.include_router(analytics_router.router, dependencies=_auth)
+    # Phase 4 — Report Generation, Topics, Review Console, Dashboard
+    app.include_router(reports_router.router, dependencies=_auth)
+    app.include_router(topics_router.router, dependencies=_auth)
+    app.include_router(review_router.router, dependencies=_auth)
+    app.include_router(dashboard_router.router, dependencies=_auth)
+    # Phase 5 — Parliamentary Copilot, Map, Forecast, Benchmark
+    app.include_router(parliamentary_router.router, dependencies=_auth)
+    app.include_router(map_router.router, dependencies=_auth)
+    app.include_router(forecast_router.router, dependencies=_auth)
+    app.include_router(benchmark_router.router, dependencies=_auth)
 
     @app.get("/health", tags=["Health"])
     async def health():

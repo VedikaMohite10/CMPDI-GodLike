@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import ExportButtons from '../components/reports/ExportButtons'
@@ -6,6 +6,8 @@ import ReportPreview from '../components/reports/ReportPreview'
 import ReportScopeForm from '../components/reports/ReportScopeForm'
 import { LoadingState } from '../components/ui/StatePanel'
 import { reportsMock, reportsWorkspaceMock } from '../data/reportsMock'
+import { useAuth } from '../context/AuthContext'
+import { generateReport as apiGenerateReport, listReports, getReport, exportReport } from '../api/reports'
 import { ReportsTabNavigation } from './ReportsTabs'
 
 const defaultForm = {
@@ -56,6 +58,7 @@ function ReportStatus({ status }) {
 }
 
 export default function ReportsPage() {
+  const { token } = useAuth()
   const [form, setForm] = useState(defaultForm)
   const [report, setReport] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -65,7 +68,30 @@ export default function ReportsPage() {
   const [dateRange, setDateRange] = useState('all')
   const [openMenu, setOpenMenu] = useState(null)
   const [notice, setNotice] = useState('')
+  const [reportsList, setReportsList] = useState(reportsWorkspaceMock.reports)  // real list from API
   const builderRef = useRef(null)
+
+  // Load real reports list on mount
+  useEffect(() => {
+    if (!token) return
+    listReports(token, { pageSize: 100 })
+      .then((r) => {
+        const items = r.items ?? []
+        if (items.length > 0) {
+          setReportsList(items.map((item) => ({
+            id:          item.id,
+            name:        item.label ?? item.title ?? `Report ${item.id.slice(0, 8)}`,
+            description: item.description ?? `${(item.metrics ?? []).join(', ')}`,
+            category:    item.category ?? 'Annual Report',
+            subsidiary:  (item.entity_ids ?? [])[0] ?? '—',
+            status:      item.status ?? 'Complete',
+            date:        item.created_at ? new Date(item.created_at).toLocaleDateString('en-IN') : '—',
+            isoDate:     item.created_at ?? new Date().toISOString(),
+          })))
+        }
+      })
+      .catch(() => { /* keep mock list */ })
+  }, [token])
 
   const filteredReports = useMemo(() => {
     const normalizedSearch = searchQuery.trim().toLowerCase()
@@ -76,7 +102,7 @@ export default function ReportsPage() {
       cutoff.setDate(cutoff.getDate() - days)
     }
 
-    return reportsWorkspaceMock.reports.filter((item) => {
+    return reportsList.filter((item) => {
       const matchesCategory = selectedCategory === 'All Reports' || item.category === selectedCategory
       const matchesSearch = !normalizedSearch || [item.name, item.description, item.category, item.subsidiary].join(' ').toLowerCase().includes(normalizedSearch)
       const matchesDate = !cutoff || new Date(item.isoDate) >= cutoff
@@ -90,23 +116,66 @@ export default function ReportsPage() {
     window.requestAnimationFrame(() => builderRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   }
 
-  const generateReport = () => {
+  const generateReport = async () => {
     setLoading(true)
-    const mainSubsidiary = form.subsidiaries[0] || 'CCL'
-    const selected = reportsMock[form.timePeriod]?.[mainSubsidiary]
+    setNotice('')
+    try {
+      // Map form fields to backend schema
+      const [periodStart, periodEnd] = form.timePeriod.includes('-')
+        ? [`20${form.timePeriod.split('-')[0]}`, `20${form.timePeriod.split('-')[1]}`]
+        : [form.timePeriod, form.timePeriod]
 
-    window.setTimeout(() => {
-      setReport(selected || reportsMock['2025-26'].CCL)
+      const result = await apiGenerateReport(token, {
+        entityIds: form.subsidiaries,
+        metrics:   form.metrics,
+        periodStart,
+        periodEnd,
+        label: `${form.timePeriod} Report — ${form.subsidiaries.join(', ')}`,
+      })
+      // Map the backend response to the shape ReportPreview expects
+      setReport({
+        id:           result.report_id,
+        sections:     result.sections ?? [],
+        citationCount: result.citation_count ?? 0,
+        dqWarnings:   result.dq_warning_count ?? 0,
+        modelUsed:    result.model_used ?? 'LLM',
+        // Keep a mock fallback for the preview template
+        ...(reportsMock['2025-26']?.[form.subsidiaries[0]] ?? {}),
+      })
+      // Refresh list to include the new report
+      listReports(token, { pageSize: 100 })
+        .then((r) => { if (r.items?.length) setReportsList(r.items.map((item) => ({
+          id: item.id, name: item.label ?? `Report ${item.id.slice(0,8)}`,
+          description: item.description ?? '', category: item.category ?? 'Annual Report',
+          subsidiary: (item.entity_ids ?? [])[0] ?? '—', status: item.status ?? 'Complete',
+          date: item.created_at ? new Date(item.created_at).toLocaleDateString('en-IN') : '—',
+          isoDate: item.created_at ?? new Date().toISOString(),
+        }))) })
+        .catch(() => {})
+    } catch (err) {
+      setNotice(`Report generation failed: ${err.message ?? 'Check backend logs.'}`)
+      // Fallback to mock for preview so the UI stays usable
+      const mainSubsidiary = form.subsidiaries[0] || 'CCL'
+      setReport(reportsMock['2025-26']?.[mainSubsidiary] ?? reportsMock['2025-26'].CCL)
+    } finally {
       setLoading(false)
-    }, 1100)
+    }
   }
 
-  const openReport = (item) => {
+  const openReport = async (item) => {
+    setOpenMenu(null)
+    openBuilder()
+    if (item.id && token) {
+      try {
+        const data = await getReport(token, item.id)
+        setReport({ id: data.id, sections: data.sections ?? [], citationCount: data.citation_count ?? 0, ...(reportsMock['2025-26']?.[item.subsidiary] ?? {}) })
+        return
+      } catch { /* fallthrough */ }
+    }
+    // Fallback to mock
     const selected = reportsMock['2025-26']?.[item.subsidiary] || null
     setForm((current) => ({ ...current, timePeriod: '2025-26', subsidiaries: [item.subsidiary] }))
     setReport(selected)
-    setOpenMenu(null)
-    openBuilder()
   }
 
   const showActionNotice = (message) => {
@@ -310,7 +379,7 @@ export default function ReportsPage() {
             <Card className="report-card report-card--preview">
               <div className="report-toolbar">
                 <div><p className="eyebrow">Review and evidence</p><h2>Generated report preview</h2></div>
-                <ExportButtons />
+                <ExportButtons reportId={report?.id ?? null} token={token} />
               </div>
               <ReportPreview report={report} form={form} />
             </Card>

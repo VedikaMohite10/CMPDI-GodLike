@@ -55,6 +55,7 @@ rapidfuzz>=3.0.0              # Fuzzy entity matching
 # ---------- Phase 5: Security / Auth ----------
 python-jose[cryptography]>=3.3.0  # HS256 JWT encode/decode
 passlib[bcrypt]>=1.7.4            # Password hashing (bcrypt)
+bcrypt>=3.2.0,<4.0.0             # passlib 1.7.4 is incompatible with bcrypt 4+
 
 # ---------- Phase 5: Forecasting ----------
 statsmodels>=0.14.0           # Exponential smoothing + ARIMA for the forecasting engine (CPU-only)

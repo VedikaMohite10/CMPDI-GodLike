@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import AppShell from './layouts/AppShell'
 
 // Tabbed Section Containers
@@ -24,8 +24,26 @@ import MiningMapPage from './pages/MiningMap'
 import VerificationPage from './pages/Verification'
 import DesignSystemPage from './pages/DesignSystemPage'
 import LandingPage from './pages/LandingPage'
-import { AuthProvider } from './context/AuthContext'
+import LoginPage from './pages/LoginPage'
+import { AuthProvider, useAuth } from './context/AuthContext'
 import './App.css'
+
+/**
+ * RequireAuth — redirects unauthenticated users to /login,
+ * preserving the original destination so LoginPage can redirect back.
+ */
+function RequireAuth({ children }) {
+  const { isAuthenticated, loading } = useAuth()
+  const location = useLocation()
+
+  if (loading) return null   // AuthProvider shows its own spinner
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" state={{ from: location }} replace />
+  }
+
+  return children
+}
 
 function AppRoutes() {
   return (
@@ -33,8 +51,17 @@ function AppRoutes() {
       {/* Standalone Landing Page */}
       <Route path="/" element={<LandingPage />} />
 
-      {/* Internal Application Shell (Direct Access) */}
-      <Route element={<AppShell />}>
+      {/* Dedicated Login Route (Phase 6) */}
+      <Route path="/login" element={<LoginPage />} />
+
+      {/* Internal Application Shell — protected by RequireAuth */}
+      <Route
+        element={
+          <RequireAuth>
+            <AppShell />
+          </RequireAuth>
+        }
+      >
 
         {/* 1. Dashboard & Forecasting */}
         <Route path="/dashboard" element={<DashboardTabs />}>

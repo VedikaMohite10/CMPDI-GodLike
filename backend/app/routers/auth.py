@@ -1,14 +1,21 @@
-"""Auth router — Phase 5.
+"""Auth router — Phase 5 + 6.
 
-POST /auth/login       — returns a JWT access token (any user)
-POST /auth/users       — creates a new user account (admin only)
-GET  /auth/me          — returns the calling user's profile (any authenticated user)
+POST /auth/login              — returns a JWT access token (any user)
+POST /auth/users              — creates a new user account (admin only)
+GET  /auth/me                 — returns the calling user's profile (any authenticated user)
+GET  /auth/users              — list all users (admin only)
+PATCH /auth/users/{user_id}  — update role or active status (admin only)
+DELETE /auth/users/{user_id} — deactivate a user account (admin only, soft delete)
 """
 from __future__ import annotations
+
+import uuid
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, field_validator
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -40,6 +47,18 @@ class CreateUserRequest(BaseModel):
     @classmethod
     def valid_role(cls, v: str) -> str:
         if v not in ("analyst", "reviewer", "admin"):
+            raise ValueError("role must be analyst, reviewer, or admin")
+        return v
+
+
+class UpdateUserRequest(BaseModel):
+    role:      Optional[str] = None
+    is_active: Optional[bool] = None
+
+    @field_validator("role")
+    @classmethod
+    def valid_role(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in ("analyst", "reviewer", "admin"):
             raise ValueError("role must be analyst, reviewer, or admin")
         return v
 
@@ -115,9 +134,76 @@ async def create_user_endpoint(
 
 
 @router.get(
+    "/users",
+    response_model=List[UserOut],
+    summary="List all users (admin only)",
+    description="Returns a list of all registered user accounts. Requires admin role.",
+)
+async def list_users(
+    db: AsyncSession = Depends(get_db),
+    _admin: User = Depends(require_role("admin")),
+):
+    result = await db.execute(select(User).order_by(User.username))
+    return [UserOut.from_orm(u) for u in result.scalars().all()]
+
+
+@router.patch(
+    "/users/{user_id}",
+    response_model=UserOut,
+    summary="Update a user's role or active status (admin only)",
+)
+async def update_user(
+    user_id: str,
+    req: UpdateUserRequest,
+    db: AsyncSession = Depends(get_db),
+    _admin: User = Depends(require_role("admin")),
+):
+    try:
+        uid = uuid.UUID(user_id)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid user ID format.")
+    result = await db.execute(select(User).where(User.id == uid))
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+    if req.role is not None:
+        user.role = req.role
+    if req.is_active is not None:
+        user.is_active = req.is_active
+    await db.commit()
+    await db.refresh(user)
+    return UserOut.from_orm(user)
+
+
+@router.delete(
+    "/users/{user_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Deactivate a user account (admin only)",
+    description="Soft-deletes by setting is_active=False. The record is preserved for audit integrity.",
+)
+async def deactivate_user(
+    user_id: str,
+    db: AsyncSession = Depends(get_db),
+    _admin: User = Depends(require_role("admin")),
+):
+    try:
+        uid = uuid.UUID(user_id)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid user ID format.")
+    result = await db.execute(select(User).where(User.id == uid))
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+    user.is_active = False
+    await db.commit()
+
+
+@router.get(
     "/me",
     response_model=UserOut,
     summary="Get the currently authenticated user's profile",
 )
 async def get_me(current_user: User = Depends(get_current_user)):
     return UserOut.from_orm(current_user)
+
+

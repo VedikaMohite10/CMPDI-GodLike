@@ -11,6 +11,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.services.auth.dependencies import get_current_user
+from app.models.phase5 import User
 from app.models.phase2 import QueryResponse
 from app.schemas.query import ExplainableAIResponse, QueryRequest, QueryResponseAudit
 from app.services.query_copilot import run_query
@@ -35,6 +37,7 @@ router = APIRouter(prefix="/query", tags=["Query Copilot"])
 async def query(
     request: QueryRequest,
     db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
 ):
     try:
         response = await run_query(
@@ -64,6 +67,7 @@ async def query(
 async def get_query_response(
     query_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
 ):
     result = await db.execute(
         select(QueryResponse).where(QueryResponse.id == query_id)
