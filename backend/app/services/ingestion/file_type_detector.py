@@ -52,14 +52,25 @@ def detect(file_bytes: bytes, filename: str = "") -> FileTypeResult:
     if kind is not None:
         mime = kind.mime
     else:
-        # filetype couldn't guess — fall back to extension or treat as CSV/plain text
+        # filetype couldn't guess — fall back to extension lookup
         mime = _mime_from_extension(filename)
         # Special case: CSV files have no magic bytes; trust extension
         if mime == "application/octet-stream":
             if filename.lower().endswith(".csv"):
                 mime = "text/csv"
             else:
-                mime = "text/plain"
+                # Unknown binary format — reject rather than silently accept.
+                # This prevents .exe, .zip, .bin, etc. from being treated as CSV/plain text.
+                ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "(no extension)"
+                return FileTypeResult(
+                    mime_type="application/octet-stream",
+                    file_type="unsupported",
+                    ocr_required=False,
+                    error=(
+                        f"Unrecognised file format (extension: .{ext}). "
+                        "Allowed formats: PDF, DOCX, XLSX, CSV, JPEG, PNG, TIFF, BMP."
+                    ),
+                )
 
     # 2. Normalise text/plain → csv if extension says so
     if mime == "text/plain" and filename.lower().endswith(".csv"):

@@ -172,7 +172,7 @@ async def _load_documents_with_text(
 ) -> Tuple[List[Document], Dict[uuid.UUID, str]]:
     """Load all completed documents and concatenate their text blocks."""
     docs_res = await db.execute(
-        select(Document).where(Document.processing_status == "complete")
+        select(Document).where(Document.processing_status == "done")
     )
     docs = docs_res.scalars().all()
 
@@ -226,14 +226,19 @@ def _cluster(
 
     Returns (labels, algorithm_name, params_dict).
     Labels follow sklearn convention: -1 = noise.
+
+    Note: n_docs is the total number of documents loaded; X.shape[0] may be
+    smaller if some documents had empty text and were skipped during embedding.
+    All cluster size calculations use X.shape[0] (the actual sample count).
     """
     from sklearn.preprocessing import normalize
     X_norm = normalize(X, norm="l2")  # cosine similarity via L2-normalised euclidean
 
-    min_cluster_size = max(3, n_docs // settings.TOPIC_MIN_CLUSTER_SIZE_DIVISOR)
+    n_embedded = X.shape[0]  # actual number of data points — may differ from n_docs
+    min_cluster_size = max(2, n_embedded // max(1, settings.TOPIC_MIN_CLUSTER_SIZE_DIVISOR))
 
     # --- Try HDBSCAN (sklearn >= 1.3) ---
-    if n_docs >= 10:
+    if n_embedded >= 6:
         try:
             from sklearn.cluster import HDBSCAN
             clusterer = HDBSCAN(
@@ -268,15 +273,16 @@ def _cluster(
 
     # --- KMeans fallback ---
     from sklearn.cluster import KMeans
-    k = min(settings.TOPIC_FALLBACK_K, max(2, n_docs // 2))
+    # k must never exceed n_embedded (actual samples in X); floor at 2, cap at n_embedded//2
+    k = min(settings.TOPIC_FALLBACK_K, max(2, n_embedded // 2), n_embedded)
     km = KMeans(n_clusters=k, random_state=42, n_init="auto")
     labels = km.fit_predict(X_norm)
     params = {
         "algorithm": "kmeans_fallback",
         "k":         int(k),
-        "reason":    f"n_docs={n_docs} < 10 or HDBSCAN noise > 80%",
+        "reason":    f"n_embedded={n_embedded} < 6 or HDBSCAN noise > 80%",
     }
-    logger.info("KMeans fallback: k=%d", k)
+    logger.info("KMeans fallback: k=%d (n_embedded=%d)", k, n_embedded)
     return labels, "kmeans_fallback", params
 
 
