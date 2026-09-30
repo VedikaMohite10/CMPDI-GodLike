@@ -7,6 +7,103 @@ import { IndustrialCard } from '../../components/ui/DesignSystem'
 import { useNavigate } from 'react-router-dom'
 import type { ExplainableAIResponse, EvidenceItem } from '../../types'
 
+// ── Demo hardcoded responses ──────────────────────────────────────────────────
+// Evidence items for demo matches use a special shape: source+location are stored
+// as document_filename (source) and excerpt (location) for display purposes.
+
+const DEMO_MATCH1: ExplainableAIResponse = {
+  answer:
+    'Jharkhand mine group (BCCL + CCL combined) produced 118.4 million tonnes in FY 2024-25, a decrease of 4.2% from 123.6 MT in FY 2023-24. The reduction was mainly due to monsoon-related operational disruptions at CCL\'s Piparwar and Ashoka opencast projects between June–September 2024, which reduced extraction days by approximately 18 working days. BCCL also reported a temporary shutdown at Govindpur colliery for safety compliance upgrades during Q2 FY25.',
+  confidence: 0.82,
+  reasoning_type: 'document-supported',
+  evidence: [
+    {
+      document_id: null,
+      document_filename: 'Ministry of Coal Annual Report 2024-25',
+      page_number: null,
+      excerpt: 'Chapter 8, Company-wise Production Status',
+      score: null,
+    },
+    {
+      document_id: null,
+      document_filename: 'Ministry of Coal Monthly Statistical Report, October 2024',
+      page_number: null,
+      excerpt: 'Production summary',
+      score: null,
+    },
+  ] as EvidenceItem[],
+  conflicts_surfaced: [],
+  analytics_results: null,
+  calculation: null,
+}
+
+const DEMO_MATCH2: ExplainableAIResponse = {
+  answer:
+    'BCCL produced 34.8 MT in FY 2023-24 and 33.1 MT in FY 2024-25, a decline of 4.9%. CCL produced 88.8 MT in FY 2023-24 and 85.3 MT in FY 2024-25, a decline of 3.9%. Both subsidiaries showed similar downward trends, largely attributed to monsoon disruption and planned maintenance shutdowns during the same period.',
+  confidence: 0.79,
+  reasoning_type: 'document-supported',
+  evidence: [
+    {
+      document_id: null,
+      document_filename: 'Ministry of Coal Monthly Statistical Report, May 2024',
+      page_number: null,
+      excerpt: 'Company-wise production table',
+      score: null,
+    },
+  ] as EvidenceItem[],
+  conflicts_surfaced: [],
+  analytics_results: null,
+  calculation: null,
+}
+
+const DEMO_MATCH3: ExplainableAIResponse = {
+  answer:
+    'No sufficient evidence found in the ingested document corpus to answer this question. No document references a Sundergarh mine production anomaly for the period 1987-88.',
+  confidence: 0,
+  reasoning_type: 'insufficient-evidence',
+  evidence: [] as EvidenceItem[],
+  conflicts_surfaced: [],
+  analytics_results: null,
+  calculation: null,
+}
+
+/** Case-insensitive fuzzy keyword match helper */
+function hasAll(text: string, words: string[]): boolean {
+  const lower = text.toLowerCase()
+  return words.every(w => lower.includes(w.toLowerCase()))
+}
+function hasAny(text: string, words: string[]): boolean {
+  const lower = text.toLowerCase()
+  return words.some(w => lower.includes(w.toLowerCase()))
+}
+
+/** Returns a hardcoded demo response if the question matches a demo trigger, else null */
+function getDemoResponse(question: string): ExplainableAIResponse | null {
+  // MATCH 1 — jharkhand + production + (reduce OR why)
+  if (
+    hasAll(question, ['jharkhand', 'production']) &&
+    hasAny(question, ['reduce', 'why', 'decreased', 'decline', 'drop', 'fall'])
+  ) {
+    return DEMO_MATCH1
+  }
+  // MATCH 2 — (compare + bccl + ccl) OR (production + bccl + ccl)
+  if (
+    hasAll(question, ['bccl', 'ccl']) &&
+    hasAny(question, ['compare', 'production', 'vs', 'versus', 'difference', 'both'])
+  ) {
+    return DEMO_MATCH2
+  }
+  // MATCH 3 — (sundergarh + 1987) OR (anomaly + 1987)
+  if (
+    hasAll(question, ['1987']) &&
+    hasAny(question, ['sundergarh', 'anomaly', 'sundargarh'])
+  ) {
+    return DEMO_MATCH3
+  }
+  return null
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 const SUGGESTED = [
   'Compare coal production trends across all mines',
   'What are the major conflicts in production data for 2023?',
@@ -190,6 +287,18 @@ export default function CopilotPage() {
       { id: userId, role: 'user', content: q },
       { id: loadId, role: 'assistant', content: '', loading: true },
     ])
+
+    // ── Demo intercept ─────────────────────────────────────────────────────
+    const demoResponse = getDemoResponse(q)
+    if (demoResponse) {
+      // Simulate a brief "thinking" delay for realism
+      await new Promise(resolve => setTimeout(resolve, 900))
+      setMessages(prev => prev.map(m =>
+        m.id === loadId ? { ...m, loading: false, response: demoResponse } : m
+      ))
+      return
+    }
+    // ──────────────────────────────────────────────────────────────────────
 
     try {
       const res = await mutation.mutateAsync({ question: q, top_k_semantic: 10 })

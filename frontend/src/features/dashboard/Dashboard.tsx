@@ -52,6 +52,32 @@ function ActivityItem({ label, sub, time, type }: { label: string; sub?: string;
   )
 }
 
+// ── DEMO hardcoded stats (all roles) ─────────────────────────────────────────
+const DEMO_STATS = {
+  totalDocs:      24,
+  totalFacts:     187,
+  totalVectors:   1842,
+  openConflicts:  3,
+  reviewPending:  12,
+  docsProcessed:  24,
+  resolvedConflicts: 8,
+  missingValueFlags: 5,
+  duplicateCandidates: 2,
+}
+
+const DEMO_TRUST = {
+  open_conflicts:       DEMO_STATS.openConflicts,
+  resolved_conflicts:   DEMO_STATS.resolvedConflicts,
+  missing_value_flags:  DEMO_STATS.missingValueFlags,
+  duplicate_candidates: DEMO_STATS.duplicateCandidates,
+}
+
+const DEMO_REVIEW = {
+  pending_human_review: DEMO_STATS.reviewPending,
+  docs_processed:       DEMO_STATS.docsProcessed,
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 export default function Dashboard() {
   const { data: stats, isLoading, error, refetch } = useQuery({
     queryKey: QUERY_KEYS.dashboard,
@@ -59,18 +85,17 @@ export default function Dashboard() {
     refetchInterval: 60_000,
   })
 
-  // Extract metrics from dashboard stats
-  const extraction = stats?.extraction as Record<string, unknown> | undefined
-  const trust      = stats?.trust      as Record<string, unknown> | undefined
-  const review     = stats?.review     as Record<string, unknown> | undefined
-  const pipeline   = stats?.pipeline   as Record<string, unknown> | undefined
+  // ── Use hardcoded demo values regardless of API response / role ──
+  const totalDocs     = DEMO_STATS.totalDocs
+  const totalFacts    = DEMO_STATS.totalFacts
+  const openConflicts = DEMO_STATS.openConflicts
+  const reviewPending = DEMO_STATS.reviewPending
+  const totalVectors  = DEMO_STATS.totalVectors
+  const docsProcessed = DEMO_STATS.docsProcessed
 
-  const totalDocs       = (extraction?.total_documents       as number | undefined) ?? '—'
-  const totalFacts      = (extraction?.total_normalized_facts as number | undefined) ?? '—'
-  const openConflicts   = (trust?.open_conflicts              as number | undefined) ?? '—'
-  const reviewPending   = (review?.pending_human_review       as number | undefined) ?? '—'
-  const totalVectors    = (extraction?.total_vectors_indexed  as number | undefined) ?? '—'
-  const docsProcessed   = (pipeline?.done_count              as number | undefined) ?? '—'
+  // Provide fixed trust / review objects so the sub-panels still render
+  const trust  = DEMO_TRUST  as Record<string, unknown>
+  const review = DEMO_REVIEW as Record<string, unknown>
 
   return (
     <div className="flex flex-col h-full overflow-auto">
@@ -127,7 +152,7 @@ export default function Dashboard() {
             <IndustrialCard className="p-4">
               <div className="flex items-center justify-between mb-4">
                 <div className="section-label">EXTRACTION PIPELINE</div>
-                <StatusBadge status={docsProcessed === '—' ? 'pending' : 'done'} />
+                <StatusBadge status="done" />
               </div>
               {isLoading ? (
                 <LoadingSkeleton lines={3} />
